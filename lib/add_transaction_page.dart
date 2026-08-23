@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'categories/category_selector.dart';
+import 'localization/app_language.dart';
 import 'transaction/final_transaction.dart';
 
 class AddTransactionPage extends StatefulWidget {
@@ -81,9 +82,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       initialDate: initialDate,
       firstDate: DateTime(2000, 1, 1),
       lastDate: today,
-      helpText: isEditing ? 'Modifica data' : 'Data del movimento',
-      cancelText: 'Annulla',
-      confirmText: 'Conferma',
+      helpText: isEditing ? l('Modifica data') : l('Data del movimento'),
+      cancelText: l('Annulla'),
+      confirmText: l('Conferma'),
     );
 
     if (pickedDate == null || !mounted) {
@@ -123,8 +124,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inserisci un importo valido'),
+        SnackBar(
+          content: Text(l('Inserisci un importo valido')),
         ),
       );
       return;
@@ -149,7 +150,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          isEditing ? 'Modifica movimento' : 'Nuovo movimento',
+          isEditing ? l('Modifica movimento') : l('Nuovo movimento'),
         ),
       ),
       body: SingleChildScrollView(
@@ -162,18 +163,18 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Importo',
-                hintText: 'Es. 25,50',
+              decoration: InputDecoration(
+                labelText: l('Importo'),
+                hintText: l('Es. 25,50'),
                 prefixText: '€ ',
               ),
             ),
             const SizedBox(height: 20),
             TextField(
               controller: descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Descrizione',
-                hintText: 'Es. Cena con amici',
+              decoration: InputDecoration(
+                labelText: l('Descrizione'),
+                hintText: l('Es. Cena con amici'),
               ),
             ),
             const SizedBox(height: 20),
@@ -191,8 +192,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               onTap: chooseDate,
               borderRadius: BorderRadius.circular(16),
               child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Data',
+                decoration: InputDecoration(
+                  labelText: l('Data'),
                   prefixIcon: Icon(
                     Icons.calendar_today_outlined,
                   ),
@@ -219,7 +220,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Puoi registrare anche un movimento dimenticato di un mese precedente.',
+              l('Puoi registrare anche un movimento dimenticato di un mese precedente.'),
               style: TextStyle(
                 fontSize: 12,
                 color: colors.onSurfaceVariant,
@@ -228,8 +229,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
             const SizedBox(height: 18),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Tipo di movimento'),
-              subtitle: Text(isIncome ? 'Entrata' : 'Spesa'),
+              title: Text(l('Tipo di movimento')),
+              subtitle: Text(isIncome ? l('Entrata') : l('Spesa')),
               value: isIncome,
               onChanged: (value) {
                 setState(() {
@@ -244,7 +245,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 isEditing ? Icons.check : Icons.add,
               ),
               label: Text(
-                isEditing ? 'Salva modifiche' : 'Salva movimento',
+                isEditing ? l('Salva modifiche') : l('Salva movimento'),
               ),
             ),
           ],

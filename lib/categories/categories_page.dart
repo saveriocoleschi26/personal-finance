@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/database_service.dart';
+import '../localization/app_language.dart';
 import 'expense_category.dart';
 
 enum CategoryAction {
@@ -54,8 +55,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Esiste già una categoria con questo nome.'),
+        SnackBar(
+          content: Text(l('Esiste già una categoria con questo nome.')),
         ),
       );
     }
@@ -82,8 +83,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Esiste già una categoria con questo nome.'),
+        SnackBar(
+          content: Text(l('Esiste già una categoria con questo nome.')),
         ),
       );
     }
@@ -111,7 +112,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
             children: [
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: const Text('Modifica'),
+                title: Text(l('Modifica')),
                 onTap: () {
                   Navigator.pop(sheetContext, CategoryAction.edit);
                 },
@@ -124,11 +125,11 @@ class _CategoriesPageState extends State<CategoriesPage> {
                         : Icons.visibility_outlined,
                   ),
                   title: Text(
-                    category.isActive ? 'Disattiva' : 'Riattiva',
+                    category.isActive ? l('Disattiva') : l('Riattiva'),
                   ),
                   subtitle: category.isActive
-                      ? const Text(
-                          'Le vecchie operazioni manterranno questa categoria.',
+                      ? Text(
+                          l('Le vecchie operazioni manterranno questa categoria.'),
                         )
                       : null,
                   onTap: () {
@@ -164,12 +165,12 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Categorie'),
+        title: Text(l('Categorie')),
       ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: _addCategory,
           icon: const Icon(Icons.add),
-          label: const Text('Nuova categoria'),
+          label: Text(l('Nuova categoria')),
         ),
         body: isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -177,7 +178,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
                 children: [
                   Text(
-                    'Le categorie attive compaiono quando aggiungi movimenti o spese pianificate. Disattivare una categoria non modifica lo storico.',
+                    l('Le categorie attive compaiono quando aggiungi movimenti o spese pianificate. Disattivare una categoria non modifica lo storico.'),
                     style: TextStyle(
                       fontSize: 13,
                       color: colors.onSurfaceVariant,
@@ -229,7 +230,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                                           children: [
                                             Flexible(
                                               child: Text(
-                                                categories[i].name,
+                                                localizedCategory(categories[i].name),
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.w600,
                                                   color: categories[i].isActive
@@ -252,7 +253,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                                                       BorderRadius.circular(20),
                                                 ),
                                                 child: Text(
-                                                  'Sempre disponibile',
+                                                  l('Sempre disponibile'),
                                                   style: TextStyle(
                                                     fontSize: 10,
                                                     color: colors.primary,
@@ -266,7 +267,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                                         if (!categories[i].isActive) ...[
                                           const SizedBox(height: 3),
                                           Text(
-                                            'Disattivata',
+                                            l('Disattivata'),
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: colors.onSurfaceVariant,
@@ -340,8 +341,8 @@ class _CategoryDialogState extends State<CategoryDialog> {
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inserisci un nome per la categoria.'),
+        SnackBar(
+          content: Text(l('Inserisci un nome per la categoria.')),
         ),
       );
       return;
@@ -367,7 +368,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
 
     return AlertDialog(
       title: Text(
-        isEditing ? 'Modifica categoria' : 'Nuova categoria',
+        isEditing ? l('Modifica categoria') : l('Nuova categoria'),
       ),
       content: SizedBox(
         width: 430,
@@ -381,16 +382,16 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 enabled: !isProtected,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  labelText: 'Nome',
-                  hintText: 'Es. Animali',
+                  labelText: l('Nome'),
+                  hintText: l('Es. Animali'),
                   helperText: isProtected
-                      ? '“Altro” resta sempre disponibile come categoria di sicurezza.'
+                      ? l('“Altro” resta sempre disponibile come categoria di sicurezza.')
                       : null,
                 ),
               ),
               const SizedBox(height: 22),
-              const Text(
-                'Icona',
+              Text(
+                l('Icona'),
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                 ),
@@ -403,7 +404,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                   final selected = option.key == selectedIconKey;
 
                   return Tooltip(
-                    message: option.label,
+                    message: localizedCategory(option.label),
                     child: InkWell(
                       onTap: () {
                         setState(() {
@@ -440,8 +441,8 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 }).toList(),
               ),
               const SizedBox(height: 22),
-              const Text(
-                'Colore',
+              Text(
+                l('Colore'),
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                 ),
@@ -490,11 +491,11 @@ class _CategoryDialogState extends State<CategoryDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Annulla'),
+          child: Text(l('Annulla')),
         ),
         FilledButton(
           onPressed: _save,
-          child: Text(isEditing ? 'Salva modifiche' : 'Aggiungi'),
+          child: Text(isEditing ? l('Salva modifiche') : l('Aggiungi')),
         ),
       ],
     );

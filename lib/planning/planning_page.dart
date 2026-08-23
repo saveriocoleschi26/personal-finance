@@ -4,6 +4,7 @@ import '../annual_expenses/annual_expense.dart';
 import '../annual_expenses/annual_expenses_page.dart';
 import '../budget_dialog.dart';
 import '../database/database_service.dart';
+import '../localization/app_language.dart';
 import '../planned_expenses/planned_expense.dart';
 import '../planned_expenses/planned_expenses_page.dart';
 import '../recurring_expenses/recurring_expense.dart';
@@ -32,20 +33,7 @@ class _PlanningPageState extends State<PlanningPage> {
   bool isLoading = true;
   late DateTime selectedMonth;
 
-  final monthNames = const [
-    'Gennaio',
-    'Febbraio',
-    'Marzo',
-    'Aprile',
-    'Maggio',
-    'Giugno',
-    'Luglio',
-    'Agosto',
-    'Settembre',
-    'Ottobre',
-    'Novembre',
-    'Dicembre',
-  ];
+  List<String> get monthNames => AppLanguageController.instance.monthNames;
 
   @override
   void initState() {
@@ -69,7 +57,10 @@ class _PlanningPageState extends State<PlanningPage> {
   }
 
   String formatEuro(double value) {
-    return '€ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
+    final fixed = value.toStringAsFixed(2);
+    return AppLanguageController.instance.isEnglish
+        ? '€ $fixed'
+        : '€ ${fixed.replaceAll('.', ',')}';
   }
 
   String get selectedMonthLabel {
@@ -137,7 +128,7 @@ class _PlanningPageState extends State<PlanningPage> {
           title: expense.name,
           amount: expense.amount,
           dueDate: expense.dueDate,
-          kind: expense.isRecurring ? 'Ricorrente' : 'Mensile',
+          kind: expense.isRecurring ? l('Ricorrente') : le('Mensile', 'Monthly'),
           icon: expense.isRecurring
               ? Icons.repeat_rounded
               : Icons.receipt_long_outlined,
@@ -155,7 +146,7 @@ class _PlanningPageState extends State<PlanningPage> {
           title: expense.name,
           amount: expense.amount,
           dueDate: expense.dueDate,
-          kind: 'Lungo termine',
+          kind: le('Lungo termine', 'Long-term'),
           icon: Icons.event_repeat_outlined,
         ),
       );
@@ -297,8 +288,8 @@ class _PlanningPageState extends State<PlanningPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Pianifica',
+        title: Text(
+          l('Pianifica'),
           style: TextStyle(
             fontWeight: FontWeight.w700,
           ),
@@ -315,7 +306,7 @@ class _PlanningPageState extends State<PlanningPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Organizza ciò che devi pagare e quanto vuoi mettere da parte.',
+              l('Organizza ciò che devi pagare e quanto vuoi mettere da parte.'),
               style: TextStyle(
                 fontSize: 14,
                 height: 1.35,
@@ -379,7 +370,7 @@ class _PlanningPageState extends State<PlanningPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'FONDI DA METTERE DA PARTE',
+                      l('FONDI DA METTERE DA PARTE'),
                       style: TextStyle(
                         color: colors.onPrimary.withValues(alpha: 0.75),
                         fontSize: 11,
@@ -398,7 +389,10 @@ class _PlanningPageState extends State<PlanningPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${formatEuro(plannedExpenses)} per spese · ${formatEuro(savingsGoal)} da mettere da parte',
+                      le(
+                        '${formatEuro(plannedExpenses)} per spese · ${formatEuro(savingsGoal)} da mettere da parte',
+                        '${formatEuro(plannedExpenses)} for expenses · ${formatEuro(savingsGoal)} set aside',
+                      ),
                       style: TextStyle(
                         color: colors.onPrimary.withValues(alpha: 0.80),
                       ),
@@ -407,8 +401,8 @@ class _PlanningPageState extends State<PlanningPage> {
                 ),
               ),
               const SizedBox(height: 28),
-              const Text(
-                'Piano del mese',
+              Text(
+                l('Piano del mese'),
                 style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w700,
@@ -427,9 +421,11 @@ class _PlanningPageState extends State<PlanningPage> {
                   children: [
                     PlanningNavigationRow(
                       icon: Icons.receipt_long_outlined,
-                      title: 'Spese previste del mese',
-                      subtitle:
+                      title: l('Spese previste del mese'),
+                      subtitle: le(
                           '${monthlyExpenses.where((expense) => !expense.isPaid).length} ancora da pagare',
+                          '${monthlyExpenses.where((expense) => !expense.isPaid).length} still to pay',
+                        ),
                       value: formatEuro(monthlyCommitment),
                       onTap: openMonthlyExpenses,
                     ),
@@ -439,8 +435,11 @@ class _PlanningPageState extends State<PlanningPage> {
                     ),
                     PlanningNavigationRow(
                       icon: Icons.repeat_rounded,
-                      title: 'Spese ricorrenti',
-                      subtitle: '$selectedMonthRecurringCount nel mese · incluse nelle spese previste',
+                      title: l('Spese ricorrenti'),
+                      subtitle: le(
+                        '$selectedMonthRecurringCount nel mese · incluse nelle spese previste',
+                        '$selectedMonthRecurringCount this month · included in planned expenses',
+                      ),
                       value: formatEuro(recurringCommitmentForSelectedMonth),
                       onTap: openRecurringExpenses,
                     ),
@@ -450,8 +449,8 @@ class _PlanningPageState extends State<PlanningPage> {
                     ),
                     PlanningNavigationRow(
                       icon: Icons.savings_outlined,
-                      title: 'Obiettivo di risparmio',
-                      subtitle: 'Soldi che vuoi mettere da parte',
+                      title: l('Obiettivo di risparmio'),
+                      subtitle: l('Soldi che vuoi mettere da parte'),
                       value: formatEuro(savingsGoal),
                       onTap: editSavingsGoal,
                     ),
@@ -459,8 +458,8 @@ class _PlanningPageState extends State<PlanningPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Scadenze a lungo termine',
+              Text(
+                l('Scadenze a lungo termine'),
                 style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w700,
@@ -468,7 +467,7 @@ class _PlanningPageState extends State<PlanningPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'P.F. divide ogni spesa tra i mesi prima della scadenza, così sai quanto mettere da parte ogni mese.',
+                l('P.F. divide ogni spesa tra i mesi prima della scadenza, così sai quanto mettere da parte ogni mese.'),
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.35,
@@ -507,15 +506,18 @@ class _PlanningPageState extends State<PlanningPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Scadenze a lungo termine',
+                            Text(
+                              l('Scadenze a lungo termine'),
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${annualExpenses.where((expense) => !expense.isPaid).length} attive',
+                              le(
+                                '${annualExpenses.where((expense) => !expense.isPaid).length} attive',
+                                '${annualExpenses.where((expense) => !expense.isPaid).length} active',
+                              ),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colors.onSurfaceVariant,
@@ -535,7 +537,7 @@ class _PlanningPageState extends State<PlanningPage> {
                             ),
                           ),
                           Text(
-                            'questo mese',
+                            l('questo mese'),
                             style: TextStyle(
                               fontSize: 10,
                               color: colors.onSurfaceVariant,
@@ -553,8 +555,8 @@ class _PlanningPageState extends State<PlanningPage> {
                 ),
               ),
               const SizedBox(height: 28),
-              const Text(
-                'Prossime scadenze',
+              Text(
+                l('Prossime scadenze'),
                 style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w700,
@@ -573,7 +575,7 @@ class _PlanningPageState extends State<PlanningPage> {
                     ),
                   ),
                   child: Text(
-                    'Nessuna scadenza pianificata.',
+                    l('Nessuna scadenza pianificata.'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
@@ -592,7 +594,7 @@ class _PlanningPageState extends State<PlanningPage> {
                   child: Column(
                     children: [
                       for (int i = 0; i < upcomingDeadlines.length; i++) ...[
-                        PlanningDeadlineRow(
+                        _PlanningDeadlineRow(
                           deadline: upcomingDeadlines[i],
                           formatEuro: formatEuro,
                           monthNames: monthNames,
@@ -703,13 +705,12 @@ class _PlanningDeadline {
   });
 }
 
-class PlanningDeadlineRow extends StatelessWidget {
+class _PlanningDeadlineRow extends StatelessWidget {
   final _PlanningDeadline deadline;
   final String Function(double) formatEuro;
   final List<String> monthNames;
 
-  const PlanningDeadlineRow({
-    super.key,
+  const _PlanningDeadlineRow({
     required this.deadline,
     required this.formatEuro,
     required this.monthNames,
@@ -752,7 +753,9 @@ class PlanningDeadlineRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${deadline.kind} · ${deadline.dueDate.day} ${monthNames[deadline.dueDate.month - 1].toLowerCase()} ${deadline.dueDate.year}',
+                  AppLanguageController.instance.isEnglish
+                      ? '${deadline.kind} · ${monthNames[deadline.dueDate.month - 1]} ${deadline.dueDate.day}, ${deadline.dueDate.year}'
+                      : '${deadline.kind} · ${deadline.dueDate.day} ${monthNames[deadline.dueDate.month - 1].toLowerCase()} ${deadline.dueDate.year}',
                   style: TextStyle(
                     fontSize: 11,
                     color: colors.onSurfaceVariant,

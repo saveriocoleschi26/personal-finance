@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../categories/category_selector.dart';
 import '../database/database_service.dart';
+import '../localization/app_language.dart';
 import 'recurring_expense.dart';
 
 enum RecurringExpenseAction {
@@ -30,20 +31,8 @@ class _RecurringExpensesPageState
   List<RecurringExpense> expenses = [];
   bool isLoading = true;
 
-  final List<String> monthNames = const [
-    'gennaio',
-    'febbraio',
-    'marzo',
-    'aprile',
-    'maggio',
-    'giugno',
-    'luglio',
-    'agosto',
-    'settembre',
-    'ottobre',
-    'novembre',
-    'dicembre',
-  ];
+  List<String> get monthNames =>
+      AppLanguageController.instance.monthNamesForDates;
 
   @override
   void initState() {
@@ -64,12 +53,17 @@ class _RecurringExpensesPageState
   }
 
   String formatEuro(double value) {
-    return '€ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
+    final fixed = value.toStringAsFixed(2);
+    return AppLanguageController.instance.isEnglish
+        ? '€ $fixed'
+        : '€ ${fixed.replaceAll('.', ',')}';
   }
 
   String formatMonth(DateTime date) {
     final name = monthNames[date.month - 1];
-    return '${name[0].toUpperCase()}${name.substring(1)} ${date.year}';
+    return AppLanguageController.instance.isEnglish
+        ? '$name ${date.year}'
+        : '${name[0].toUpperCase()}${name.substring(1)} ${date.year}';
   }
 
   double get selectedMonthTotal {
@@ -153,17 +147,19 @@ class _RecurringExpensesPageState
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Eliminare la ricorrenza?'),
+          title: Text(l('Eliminare la ricorrenza?')),
           content: Text(
-            'Vuoi eliminare "${expense.name}" dalle spese ricorrenti? '
-            'I pagamenti già registrati resteranno nello storico.',
+            le(
+              'Vuoi eliminare "${expense.name}" dalle spese ricorrenti? I pagamenti già registrati resteranno nello storico.',
+              'Delete "${expense.name}" from recurring expenses? Payments already recorded will stay in your history.',
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Annulla'),
+              child: Text(l('Annulla')),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -173,7 +169,7 @@ class _RecurringExpensesPageState
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Elimina'),
+              child: Text(l('Elimina')),
             ),
           ],
         );
@@ -203,7 +199,7 @@ class _RecurringExpensesPageState
             children: [
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: const Text('Modifica'),
+                title: Text(l('Modifica')),
                 onTap: () {
                   Navigator.pop(
                     sheetContext,
@@ -219,8 +215,8 @@ class _RecurringExpensesPageState
                 ),
                 title: Text(
                   expense.isActive
-                      ? 'Metti in pausa'
-                      : 'Riattiva',
+                      ? l('Metti in pausa')
+                      : l('Riattiva'),
                 ),
                 onTap: () {
                   Navigator.pop(
@@ -235,7 +231,7 @@ class _RecurringExpensesPageState
                   color: errorColor,
                 ),
                 title: Text(
-                  'Elimina',
+                  l('Elimina'),
                   style: TextStyle(color: errorColor),
                 ),
                 onTap: () {
@@ -273,8 +269,8 @@ class _RecurringExpensesPageState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Spese ricorrenti',
+        title: Text(
+          l('Spese ricorrenti'),
           style: TextStyle(
             fontWeight: FontWeight.w700,
           ),
@@ -283,7 +279,7 @@ class _RecurringExpensesPageState
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addExpense,
         icon: const Icon(Icons.add),
-        label: const Text('Aggiungi'),
+        label: Text(l('Aggiungi')),
       ),
       body: isLoading
           ? const Center(
@@ -310,7 +306,10 @@ class _RecurringExpensesPageState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'RICORRENTI IN ${formatMonth(widget.selectedMonth).toUpperCase()}',
+                          le(
+                            'RICORRENTI IN ${formatMonth(widget.selectedMonth).toUpperCase()}',
+                            'RECURRING IN ${formatMonth(widget.selectedMonth).toUpperCase()}',
+                          ),
                           style: TextStyle(
                             color: colors.onPrimary.withValues(alpha: 0.75),
                             fontSize: 11,
@@ -329,7 +328,10 @@ class _RecurringExpensesPageState
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '$activeCount ricorrenze attive complessivamente',
+                          le(
+                            '$activeCount ricorrenze attive complessivamente',
+                            '$activeCount active recurring expenses overall',
+                          ),
                           style: TextStyle(
                             color: colors.onPrimary.withValues(alpha: 0.80),
                           ),
@@ -338,8 +340,8 @@ class _RecurringExpensesPageState
                     ),
                   ),
                   const SizedBox(height: 28),
-                  const Text(
-                    'Le tue ricorrenze',
+                  Text(
+                    l('Le tue ricorrenze'),
                     style: TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.w700,
@@ -347,7 +349,7 @@ class _RecurringExpensesPageState
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Affitto, telefono, palestra, streaming e altre spese che si ripetono ogni mese.',
+                    l('Affitto, telefono, palestra, streaming e altre spese che si ripetono ogni mese.'),
                     style: TextStyle(
                       fontSize: 13,
                       color: colors.onSurfaceVariant,
@@ -373,15 +375,15 @@ class _RecurringExpensesPageState
                             color: colors.onSurfaceVariant,
                           ),
                           const SizedBox(height: 14),
-                          const Text(
-                            'Nessuna spesa ricorrente',
+                          Text(
+                            l('Nessuna spesa ricorrente'),
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Aggiungi una spesa una sola volta e l’app la inserirà automaticamente nei mesi successivi.',
+                            l('Aggiungi una spesa una sola volta e l’app la inserirà automaticamente nei mesi successivi.'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 13,
@@ -446,8 +448,11 @@ class RecurringExpenseRow extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
 
     final endText = expense.endMonth == null
-        ? 'senza scadenza finale'
-        : 'fino a ${formatMonth(expense.endMonth!)}';
+        ? l('senza scadenza finale')
+        : le(
+            'fino a ${formatMonth(expense.endMonth!)}',
+            'until ${formatMonth(expense.endMonth!)}',
+          );
 
     return Opacity(
       opacity: expense.isActive ? 1 : 0.55,
@@ -503,8 +508,11 @@ class RecurringExpenseRow extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     expense.isActive
-                        ? '${expense.category} · ogni ${expense.dayOfMonth} del mese · $endText'
-                        : '${expense.category} · In pausa',
+                        ? le(
+                            '${localizedCategory(expense.category)} · ogni ${expense.dayOfMonth} del mese · $endText',
+                            '${localizedCategory(expense.category)} · every month on day ${expense.dayOfMonth} · $endText',
+                          )
+                        : '${localizedCategory(expense.category)} · ${l('In pausa')}',
                     style: TextStyle(
                       fontSize: 11,
                       color: colors.onSurfaceVariant,
@@ -575,21 +583,7 @@ class _RecurringExpenseDialogState
   }
 
   String formatMonth(DateTime date) {
-    const names = [
-      'Gennaio',
-      'Febbraio',
-      'Marzo',
-      'Aprile',
-      'Maggio',
-      'Giugno',
-      'Luglio',
-      'Agosto',
-      'Settembre',
-      'Ottobre',
-      'Novembre',
-      'Dicembre',
-    ];
-
+    final names = AppLanguageController.instance.monthNames;
     return '${names[date.month - 1]} ${date.year}';
   }
 
@@ -617,7 +611,7 @@ class _RecurringExpenseDialogState
   Future<void> selectStartMonth() async {
     final selected = await selectMonth(
       initialMonth: startMonth,
-      helpText: 'Seleziona il mese di inizio',
+      helpText: l('Seleziona il mese di inizio'),
     );
 
     if (selected == null || !mounted) return;
@@ -634,7 +628,7 @@ class _RecurringExpenseDialogState
   Future<void> selectEndMonth() async {
     final selected = await selectMonth(
       initialMonth: endMonth ?? startMonth,
-      helpText: 'Seleziona il mese finale',
+      helpText: l('Seleziona il mese finale'),
     );
 
     if (selected == null || !mounted) return;
@@ -659,10 +653,8 @@ class _RecurringExpenseDialogState
         day < 1 ||
         day > 31) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Inserisci nome, importo e giorno del mese validi',
-          ),
+        SnackBar(
+          content: Text(l('Inserisci nome, importo e giorno del mese validi')),
         ),
       );
       return;
@@ -672,10 +664,8 @@ class _RecurringExpenseDialogState
         endMonth != null &&
         endMonth!.isBefore(startMonth)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Il mese finale non può precedere quello iniziale',
-          ),
+        SnackBar(
+          content: Text(l('Il mese finale non può precedere quello iniziale')),
         ),
       );
       return;
@@ -701,8 +691,8 @@ class _RecurringExpenseDialogState
     return AlertDialog(
       title: Text(
         isEditing
-            ? 'Modifica spesa ricorrente'
-            : 'Nuova spesa ricorrente',
+            ? l('Modifica spesa ricorrente')
+            : l('Nuova spesa ricorrente'),
       ),
       content: SizedBox(
         width: 400,
@@ -712,9 +702,9 @@ class _RecurringExpenseDialogState
             children: [
               TextFormField(
                 initialValue: name,
-                decoration: const InputDecoration(
-                  labelText: 'Nome',
-                  hintText: 'Es. Netflix',
+                decoration: InputDecoration(
+                  labelText: l('Nome'),
+                  hintText: l('Es. Netflix'),
                 ),
                 onChanged: (value) {
                   name = value;
@@ -726,10 +716,10 @@ class _RecurringExpenseDialogState
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Importo mensile',
+                decoration: InputDecoration(
+                  labelText: l('Importo mensile'),
                   prefixText: '€ ',
-                  hintText: 'Es. 12,99',
+                  hintText: l('Es. 12,99'),
                 ),
                 onChanged: (value) {
                   amountText = value;
@@ -749,11 +739,10 @@ class _RecurringExpenseDialogState
               TextFormField(
                 initialValue: dayText,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Giorno di scadenza',
-                  hintText: 'Es. 5',
-                  helperText:
-                      'Se il mese ha meno giorni, useremo l’ultimo giorno disponibile.',
+                decoration: InputDecoration(
+                  labelText: l('Giorno di scadenza'),
+                  hintText: l('Es. 5'),
+                  helperText: l('Se il mese ha meno giorni, useremo l’ultimo giorno disponibile.'),
                 ),
                 onChanged: (value) {
                   dayText = value;
@@ -764,8 +753,8 @@ class _RecurringExpenseDialogState
                 onTap: selectStartMonth,
                 borderRadius: BorderRadius.circular(16),
                 child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'A partire da',
+                  decoration: InputDecoration(
+                    labelText: l('A partire da'),
                     suffixIcon: Icon(Icons.calendar_month_outlined),
                   ),
                   child: Text(
@@ -776,11 +765,11 @@ class _RecurringExpenseDialogState
               const SizedBox(height: 12),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Imposta un mese finale'),
+                title: Text(l('Imposta un mese finale')),
                 subtitle: Text(
                   hasEndMonth && endMonth != null
-                      ? 'Fino a ${formatMonth(endMonth!)}'
-                      : 'La spesa continuerà ogni mese',
+                      ? le('Fino a ${formatMonth(endMonth!)}', 'Until ${formatMonth(endMonth!)}')
+                      : l('La spesa continuerà ogni mese'),
                 ),
                 value: hasEndMonth,
                 onChanged: (value) {
@@ -798,8 +787,8 @@ class _RecurringExpenseDialogState
                   onTap: selectEndMonth,
                   borderRadius: BorderRadius.circular(16),
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Mese finale',
+                    decoration: InputDecoration(
+                      labelText: l('Mese finale'),
                       suffixIcon: Icon(Icons.event_outlined),
                     ),
                     child: Text(
@@ -817,12 +806,12 @@ class _RecurringExpenseDialogState
           onPressed: () {
             Navigator.pop(context);
           },
-          child: const Text('Annulla'),
+          child: Text(l('Annulla')),
         ),
         FilledButton(
           onPressed: save,
           child: Text(
-            isEditing ? 'Salva modifiche' : 'Aggiungi',
+            isEditing ? l('Salva modifiche') : l('Aggiungi'),
           ),
         ),
       ],

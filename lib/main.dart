@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 
 import 'app_shell.dart';
+import 'localization/app_language.dart';
+import 'security/biometric_gate.dart';
+import 'security/biometric_security.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppLanguageController.instance.load();
+  await BiometricSecurityController.instance.load();
   runApp(const PersonalFinanceApp());
 }
 
@@ -49,7 +55,9 @@ class PersonalFinanceApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AppShell(),
+      home: const BiometricGate(
+        child: AppShell(),
+      ),
     );
   }
 }

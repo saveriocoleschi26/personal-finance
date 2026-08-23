@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../categories/category_selector.dart';
 import '../database/database_service.dart';
+import '../localization/app_language.dart';
 import 'annual_expense.dart';
 
 enum AnnualExpenseAction {
@@ -26,20 +27,8 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
   List<AnnualExpense> expenses = [];
   bool isLoading = true;
 
-  final List<String> monthNames = const [
-    'gennaio',
-    'febbraio',
-    'marzo',
-    'aprile',
-    'maggio',
-    'giugno',
-    'luglio',
-    'agosto',
-    'settembre',
-    'ottobre',
-    'novembre',
-    'dicembre',
-  ];
+  List<String> get monthNames =>
+      AppLanguageController.instance.monthNamesForDates;
 
   @override
   void initState() {
@@ -59,11 +48,16 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
   }
 
   String formatEuro(double value) {
-    return '€ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
+    final fixed = value.toStringAsFixed(2);
+    return AppLanguageController.instance.isEnglish
+        ? '€ $fixed'
+        : '€ ${fixed.replaceAll('.', ',')}';
   }
 
   String formatDate(DateTime date) {
-    return '${date.day} ${monthNames[date.month - 1]} ${date.year}';
+    return AppLanguageController.instance.isEnglish
+        ? '${monthNames[date.month - 1]} ${date.day}, ${date.year}'
+        : '${date.day} ${monthNames[date.month - 1]} ${date.year}';
   }
 
   String reserveDescription(AnnualExpense expense) {
@@ -71,15 +65,15 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
     final currentMonth = DateTime(now.year, now.month, 1);
 
     if (expense.isPaid) {
-      return 'Pagata';
+      return l('Pagata');
     }
 
     if (expense.isDueInMonth(currentMonth)) {
-      return 'Da pagare questo mese';
+      return l('Da pagare questo mese');
     }
 
     if (currentMonth.isAfter(expense.dueMonth)) {
-      return 'Scaduta';
+      return l('Scaduta');
     }
 
     final reserve = expense.reserveForMonth(currentMonth);
@@ -91,10 +85,13 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
         1,
       );
 
-      return 'Metti da parte ${formatEuro(reserve)} al mese fino a ${monthNames[previousMonth.month - 1]} ${previousMonth.year}';
+      return le(
+        'Metti da parte ${formatEuro(reserve)} al mese fino a ${monthNames[previousMonth.month - 1]} ${previousMonth.year}',
+        'Set aside ${formatEuro(reserve)} per month through ${monthNames[previousMonth.month - 1]} ${previousMonth.year}',
+      );
     }
 
-    return 'Non devi ancora mettere da parte nulla';
+    return l('Non devi ancora mettere da parte nulla');
   }
 
   Future<void> addExpense() async {
@@ -138,22 +135,25 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Registra pagamento'),
+          title: Text(l('Registra pagamento')),
           content: Text(
-            'Vuoi registrare "${expense.name}" come spesa pagata oggi per ${formatEuro(expense.amount)}?',
+            le(
+              'Vuoi registrare "${expense.name}" come spesa pagata oggi per ${formatEuro(expense.amount)}?',
+              'Record "${expense.name}" as paid today for ${formatEuro(expense.amount)}?',
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Annulla'),
+              child: Text(l('Annulla')),
             ),
             FilledButton(
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Registra'),
+              child: Text(l('Registra')),
             ),
           ],
         );
@@ -178,16 +178,19 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Eliminare la spesa?'),
+          title: Text(l('Eliminare la spesa?')),
           content: Text(
-            'Vuoi eliminare "${expense.name}" dalla pianificazione?',
+            le(
+              'Vuoi eliminare "${expense.name}" dalla pianificazione?',
+              'Delete "${expense.name}" from your plan?',
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Annulla'),
+              child: Text(l('Annulla')),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -196,7 +199,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Elimina'),
+              child: Text(l('Elimina')),
             ),
           ],
         );
@@ -224,7 +227,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
             children: [
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: const Text('Modifica'),
+                title: Text(l('Modifica')),
                 onTap: () {
                   Navigator.pop(
                     sheetContext,
@@ -235,7 +238,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
               if (!expense.isPaid)
                 ListTile(
                   leading: const Icon(Icons.check_circle_outline),
-                  title: const Text('Registra pagamento'),
+                  title: Text(l('Registra pagamento')),
                   onTap: () {
                     Navigator.pop(
                       sheetContext,
@@ -249,7 +252,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                   color: errorColor,
                 ),
                 title: Text(
-                  'Elimina',
+                  l('Elimina'),
                   style: TextStyle(color: errorColor),
                 ),
                 onTap: () {
@@ -303,12 +306,12 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scadenze a lungo termine'),
+        title: Text(l('Scadenze a lungo termine')),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addExpense,
         icon: const Icon(Icons.add),
-        label: const Text('Aggiungi'),
+        label: Text(l('Aggiungi')),
       ),
       body: isLoading
           ? const Center(
@@ -335,7 +338,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'DA METTERE DA PARTE QUESTO MESE',
+                          l('DA METTERE DA PARTE QUESTO MESE'),
                           style: TextStyle(
                             color: colors.onPrimaryContainer.withValues(
                               alpha: 0.70,
@@ -356,7 +359,10 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '${activeExpenses.length} scadenze attive',
+                          le(
+                            '${activeExpenses.length} scadenze attive',
+                            '${activeExpenses.length} active long-term expenses',
+                          ),
                           style: TextStyle(
                             color: colors.onPrimaryContainer.withValues(
                               alpha: 0.75,
@@ -367,8 +373,8 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text(
-                    'Le tue scadenze',
+                  Text(
+                    l('Le tue scadenze'),
                     style: TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.w700,
@@ -376,7 +382,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Tocca una voce per modificarla, registrare il pagamento o eliminarla.',
+                    l('Tocca una voce per modificarla, registrare il pagamento o eliminarla.'),
                     style: TextStyle(
                       fontSize: 13,
                       color: colors.onSurfaceVariant,
@@ -402,15 +408,15 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                             color: colors.onSurfaceVariant,
                           ),
                           const SizedBox(height: 14),
-                          const Text(
-                            'Nessuna scadenza a lungo termine',
+                          Text(
+                            l('Nessuna scadenza a lungo termine'),
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Aggiungi bollo, assicurazione, abbonamenti o altre spese con una data di scadenza.',
+                            l('Aggiungi bollo, assicurazione, abbonamenti o altre spese con una data di scadenza.'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 13,
@@ -477,7 +483,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                                           ),
                                           const SizedBox(height: 3),
                                           Text(
-                                            'Scadenza ${formatDate(expenses[i].dueDate)}',
+                                            '${l('Scadenza')} ${formatDate(expenses[i].dueDate)}',
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: colors.onSurfaceVariant,
@@ -592,7 +598,9 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
 
-    return '$day/$month/${date.year}';
+    return AppLanguageController.instance.isEnglish
+        ? '$month/$day/${date.year}'
+        : '$day/$month/${date.year}';
   }
 
   int monthsBetween(DateTime start, DateTime end) {
@@ -636,7 +644,10 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
   }
 
   String formatEuro(double value) {
-    return '€ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
+    final fixed = value.toStringAsFixed(2);
+    return AppLanguageController.instance.isEnglish
+        ? '€ $fixed'
+        : '€ ${fixed.replaceAll('.', ',')}';
   }
 
   Future<void> selectDueDate() async {
@@ -677,10 +688,8 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
         amount == null ||
         amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Inserisci nome e importo validi',
-          ),
+        SnackBar(
+          content: Text(l('Inserisci nome e importo validi')),
         ),
       );
       return;
@@ -703,10 +712,8 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
     if (!isEditing &&
         dueMonthStart.isBefore(currentMonthStart)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'La scadenza non può essere in un mese già trascorso',
-          ),
+        SnackBar(
+          content: Text(l('La scadenza non può essere in un mese già trascorso')),
         ),
       );
       return;
@@ -736,8 +743,8 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
     return AlertDialog(
       title: Text(
         isEditing
-            ? 'Modifica scadenza'
-            : 'Nuova scadenza',
+            ? l('Modifica scadenza')
+            : l('Nuova scadenza'),
       ),
       content: SizedBox(
         width: 420,
@@ -747,9 +754,9 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nome',
-                  hintText: 'Es. Bollo auto',
+                decoration: InputDecoration(
+                  labelText: l('Nome'),
+                  hintText: l('Es. Bollo auto'),
                 ),
               ),
               const SizedBox(height: 16),
@@ -759,8 +766,8 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
                     const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Importo',
+                decoration: InputDecoration(
+                  labelText: l('Importo'),
                   prefixText: '€ ',
                 ),
                 onChanged: (_) {
@@ -782,8 +789,8 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
                 onTap: selectDueDate,
                 borderRadius: BorderRadius.circular(16),
                 child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Data di scadenza',
+                  decoration: InputDecoration(
+                    labelText: l('Data di scadenza'),
                     prefixIcon: Icon(
                       Icons.event_outlined,
                     ),
@@ -806,8 +813,8 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Quanto mettere da parte',
+                    Text(
+                      l('Quanto mettere da parte'),
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                       ),
@@ -815,8 +822,11 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
                     const SizedBox(height: 5),
                     Text(
                       previewMonthlyReserve > 0
-                          ? 'Metti da parte ${formatEuro(previewMonthlyReserve)} al mese dal ${formatDate(savingStartDate)} fino al mese prima della scadenza.'
-                          : 'La scadenza è nello stesso mese: non ci sono mesi precedenti in cui mettere da parte questa somma.',
+                          ? le(
+                              'Metti da parte ${formatEuro(previewMonthlyReserve)} al mese dal ${formatDate(savingStartDate)} fino al mese prima della scadenza.',
+                              'Set aside ${formatEuro(previewMonthlyReserve)} per month starting ${formatDate(savingStartDate)} through the month before it is due.',
+                            )
+                          : l('La scadenza è nello stesso mese: non ci sono mesi precedenti in cui mettere da parte questa somma.'),
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.onSurfaceVariant,
@@ -834,14 +844,14 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
           onPressed: () {
             Navigator.pop(context);
           },
-          child: const Text('Annulla'),
+          child: Text(l('Annulla')),
         ),
         FilledButton(
           onPressed: save,
           child: Text(
             isEditing
-                ? 'Salva modifiche'
-                : 'Aggiungi',
+                ? l('Salva modifiche')
+                : l('Aggiungi'),
           ),
         ),
       ],

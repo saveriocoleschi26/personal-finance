@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../database/database_service.dart';
+import '../localization/app_language.dart';
 import 'expense_category.dart';
 
 class CategorySelector extends StatefulWidget {
@@ -79,9 +80,9 @@ class _CategorySelectorState extends State<CategorySelector> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const InputDecorator(
+      return InputDecorator(
         decoration: InputDecoration(
-          labelText: 'Categoria',
+          labelText: l('Categoria'),
         ),
         child: Row(
           children: [
@@ -93,18 +94,18 @@ class _CategorySelectorState extends State<CategorySelector> {
               ),
             ),
             SizedBox(width: 12),
-            Text('Caricamento categorie...'),
+            Text(l('Caricamento categorie...')),
           ],
         ),
       );
     }
 
     if (categories.isEmpty) {
-      return const InputDecorator(
+      return InputDecorator(
         decoration: InputDecoration(
-          labelText: 'Categoria',
+          labelText: l('Categoria'),
         ),
-        child: Text('Nessuna categoria disponibile'),
+        child: Text(l('Nessuna categoria disponibile')),
       );
     }
 
@@ -117,8 +118,8 @@ class _CategorySelectorState extends State<CategorySelector> {
     return DropdownButtonFormField<String>(
       key: ValueKey('$selected-${categories.length}'),
       initialValue: selected,
-      decoration: const InputDecoration(
-        labelText: 'Categoria',
+      decoration: InputDecoration(
+        labelText: l('Categoria'),
       ),
       items: categories.map((category) {
         return DropdownMenuItem<String>(
@@ -139,11 +140,11 @@ class _CategorySelectorState extends State<CategorySelector> {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(category.name),
+              Text(localizedCategory(category.name)),
               if (!category.isActive) ...[
                 const SizedBox(width: 8),
                 Text(
-                  'Disattivata',
+                  l('Disattivata'),
                   style: TextStyle(
                     fontSize: 11,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,

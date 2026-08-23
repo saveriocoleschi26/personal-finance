@@ -1,10 +1,152 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../categories/categories_page.dart';
+import '../localization/app_language.dart';
 import '../onboarding/onboarding_page.dart';
+import '../security/biometric_security.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool _changingSecurity = false;
+
+  AppLanguageController get _language => AppLanguageController.instance;
+  BiometricSecurityController get _security =>
+      BiometricSecurityController.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _language.addListener(_refresh);
+    _security.addListener(_refresh);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _security.refreshAvailability();
+    });
+  }
+
+  @override
+  void dispose() {
+    _language.removeListener(_refresh);
+    _security.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  String _languageSubtitle() {
+    switch (_language.preference) {
+      case AppLanguageController.italian:
+        return l('Italiano');
+      case AppLanguageController.english:
+        return l('Inglese');
+      default:
+        final detected = _language.systemLanguageCode ==
+                AppLanguageController.italian
+            ? l('Italiano')
+            : l('Inglese');
+        return '${l('Automatico')} · $detected';
+    }
+  }
+
+  IconData get _securityIcon {
+    if (Platform.isIOS) {
+      return Icons.face_retouching_natural_rounded;
+    }
+    return Icons.fingerprint_rounded;
+  }
+
+  String _securitySubtitle() {
+    if (!_security.available) {
+      if (_security.enabled) {
+        return le(
+          'Lo sblocco biometrico non è disponibile. Puoi disattivare la protezione usando il codice del telefono.',
+          'Biometric unlock is unavailable. You can turn protection off using your phone passcode.',
+        );
+      }
+
+      if (Platform.isIOS) {
+        return le(
+          'Configura prima Face ID o Touch ID nelle impostazioni dell’iPhone',
+          'Set up Face ID or Touch ID in iPhone Settings first',
+        );
+      }
+
+      if (Platform.isAndroid) {
+        return le(
+          'Configura prima l’impronta digitale nelle impostazioni del telefono',
+          'Set up fingerprint in your phone settings first',
+        );
+      }
+
+      return le(
+        'Nessun sistema di sblocco biometrico disponibile',
+        'No biometric unlock is available',
+      );
+    }
+
+    if (Platform.isIOS) {
+      return le(
+        'Richiedi ${_security.biometricName} quando apri P.F.',
+        'Require ${_security.biometricName} when opening P.F.',
+      );
+    }
+
+    if (Platform.isAndroid) {
+      return le(
+        'Richiedi l’impronta digitale quando apri P.F.',
+        'Require fingerprint when opening P.F.',
+      );
+    }
+
+    return le(
+      'Richiedi lo sblocco biometrico quando apri P.F.',
+      'Require biometric unlock when opening P.F.',
+    );
+  }
+
+  Future<void> _changeSecurity(bool value) async {
+    if (_changingSecurity) return;
+
+    setState(() {
+      _changingSecurity = true;
+    });
+
+    final changed = await _security.setEnabled(value);
+
+    if (!mounted) return;
+
+    setState(() {
+      _changingSecurity = false;
+    });
+
+    if (!changed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _security.available
+                ? le(
+                    'Sblocco non riuscito. Riprova.',
+                    'Unlock failed. Try again.',
+                  )
+                : le(
+                    'Prima configura lo sblocco biometrico sul telefono.',
+                    'Set up biometric unlock on your phone first.',
+                  ),
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -12,13 +154,13 @@ class SettingsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Impostazioni'),
+        title: Text(l('Impostazioni')),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         children: [
           Text(
-            'Personalizzazione',
+            l('Personalizzazione'),
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -27,35 +169,111 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _SettingsCard(
-            child: ListTile(
-              leading: _SettingsIcon(
-                icon: Icons.category_outlined,
-                color: colors.primary,
-                background: colors.primaryContainer,
-              ),
-              title: const Text(
-                'Categorie',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: const Text(
-                'Crea, modifica e disattiva le categorie di spesa',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CategoriesPage(),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: _SettingsIcon(
+                    icon: Icons.category_outlined,
+                    color: colors.primary,
+                    background: colors.primaryContainer,
                   ),
-                );
-              },
+                  title: Text(
+                    l('Categorie'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    l(
+                      'Crea, modifica e disattiva le categorie di spesa',
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CategoriesPage(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 70),
+                ListTile(
+                  leading: _SettingsIcon(
+                    icon: Icons.language_rounded,
+                    color: colors.primary,
+                    background: colors.primaryContainer,
+                  ),
+                  title: Text(
+                    l('Lingua'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(_languageSubtitle()),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const LanguageSettingsPage(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 26),
           Text(
-            'Aiuto',
+            l('Sicurezza'),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _SettingsCard(
+            child: SwitchListTile(
+              secondary: _SettingsIcon(
+                icon: _securityIcon,
+                color: colors.primary,
+                background: colors.primaryContainer,
+              ),
+              title: Text(
+                l('Proteggi P.F.'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(_securitySubtitle()),
+              value: _security.enabled,
+              onChanged: (_security.available || _security.enabled) &&
+                      !_changingSecurity
+                  ? _changeSecurity
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              le(
+                'Quando la protezione è attiva, P.F. si blocca all’avvio e dopo essere rimasta in background per qualche secondo.',
+                'When protection is on, P.F. locks at startup and after being in the background for a short time.',
+              ),
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 26),
+          Text(
+            l('Aiuto'),
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -70,14 +288,14 @@ class SettingsPage extends StatelessWidget {
                 color: colors.primary,
                 background: colors.primaryContainer,
               ),
-              title: const Text(
-                'Come funziona P.F.',
-                style: TextStyle(
+              title: Text(
+                l('Come funziona P.F.'),
+                style: const TextStyle(
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              subtitle: const Text(
-                'Rivedi la guida rapida alle funzioni principali',
+              subtitle: Text(
+                l('Rivedi la guida rapida alle funzioni principali'),
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
@@ -90,6 +308,86 @@ class SettingsPage extends StatelessWidget {
                   ),
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LanguageSettingsPage extends StatefulWidget {
+  const LanguageSettingsPage({super.key});
+
+  @override
+  State<LanguageSettingsPage> createState() => _LanguageSettingsPageState();
+}
+
+class _LanguageSettingsPageState extends State<LanguageSettingsPage> {
+  Future<void> _changeLanguage(String value) async {
+    await AppLanguageController.instance.setPreference(value);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = AppLanguageController.instance;
+    final colors = Theme.of(context).colorScheme;
+
+    Widget languageOption({
+      required String value,
+      required String title,
+      String? subtitle,
+    }) {
+      final selected = controller.preference == value;
+
+      return ListTile(
+        onTap: () => _changeLanguage(value),
+        leading: Icon(
+          selected
+              ? Icons.radio_button_checked
+              : Icons.radio_button_unchecked,
+          color: selected ? colors.primary : colors.onSurfaceVariant,
+        ),
+        title: Text(title),
+        subtitle: subtitle == null ? null : Text(subtitle),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l('Lingua dell’app')),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        children: [
+          Text(
+            l('Scegli la lingua usata da P.F.'),
+            style: TextStyle(
+              fontSize: 13,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
+            child: Column(
+              children: [
+                languageOption(
+                  value: AppLanguageController.system,
+                  title: l('Automatico'),
+                  subtitle: l('Usa la lingua del telefono'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                languageOption(
+                  value: AppLanguageController.italian,
+                  title: 'Italiano',
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                languageOption(
+                  value: AppLanguageController.english,
+                  title: 'English',
+                ),
+              ],
             ),
           ),
         ],

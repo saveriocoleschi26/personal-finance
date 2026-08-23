@@ -5,6 +5,7 @@ import 'add_transaction_page.dart';
 import 'annual_expenses/annual_expense.dart';
 import 'categories/expense_category.dart';
 import 'database/database_service.dart';
+import 'localization/app_language.dart';
 import 'planned_expenses/planned_expense.dart';
 import 'settings/settings_page.dart';
 import 'transaction/final_transaction.dart';
@@ -41,20 +42,7 @@ class _HomePageState extends State<HomePage> {
 
   late DateTime selectedMonth;
 
-  final List<String> monthNames = const [
-    'Gennaio',
-    'Febbraio',
-    'Marzo',
-    'Aprile',
-    'Maggio',
-    'Giugno',
-    'Luglio',
-    'Agosto',
-    'Settembre',
-    'Ottobre',
-    'Novembre',
-    'Dicembre',
-  ];
+  List<String> get monthNames => AppLanguageController.instance.monthNames;
 
   @override
   void initState() {
@@ -383,10 +371,10 @@ class _HomePageState extends State<HomePage> {
 
   String analysisCategoryLabel(String category) {
     if (category == _savingsAnalysisKey) {
-      return 'Risparmio';
+      return l('Risparmio');
     }
 
-    return category;
+    return localizedCategory(category);
   }
 
   ExpenseCategory? categoryDetails(String name) {
@@ -418,14 +406,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   String formatEuro(double value) {
-    return '€ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
+    final fixed = value.toStringAsFixed(2);
+    return AppLanguageController.instance.isEnglish
+        ? '€ $fixed'
+        : '€ ${fixed.replaceAll('.', ',')}';
   }
 
   String formatDate(DateTime date) {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
 
-    return '$day/$month';
+    return AppLanguageController.instance.isEnglish
+        ? '$month/$day'
+        : '$day/$month';
   }
 
   DateTime monthStart(DateTime date) {
@@ -472,8 +465,14 @@ class _HomePageState extends State<HomePage> {
       SnackBar(
         content: Text(
           isCurrentMonth
-              ? 'Movimento aggiunto · Disponibile ${formatEuro(availableMoney)}'
-              : 'Movimento aggiunto in $selectedMonthLabel',
+              ? le(
+                  'Movimento aggiunto · Disponibile ${formatEuro(availableMoney)}',
+                  'Transaction added · Available ${formatEuro(availableMoney)}',
+                )
+              : le(
+                  'Movimento aggiunto in $selectedMonthLabel',
+                  'Transaction added in $selectedMonthLabel',
+                ),
         ),
         duration: const Duration(seconds: 2),
       ),
@@ -526,16 +525,19 @@ class _HomePageState extends State<HomePage> {
             : transaction.description;
 
         return AlertDialog(
-          title: const Text('Eliminare movimento?'),
+          title: Text(l('Eliminare movimento?')),
           content: Text(
-            'Vuoi eliminare definitivamente "$name"?',
+            le(
+              'Vuoi eliminare definitivamente "$name"?',
+              'Do you want to permanently delete "$name"?',
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Annulla'),
+              child: Text(l('Annulla')),
             ),
             FilledButton(
               onPressed: () {
@@ -545,7 +547,7 @@ class _HomePageState extends State<HomePage> {
                 backgroundColor:
                     Theme.of(dialogContext).colorScheme.error,
               ),
-              child: const Text('Elimina'),
+              child: Text(l('Elimina')),
             ),
           ],
         );
@@ -579,7 +581,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: const Text('Modifica'),
+                title: Text(l('Modifica')),
                 onTap: () {
                   Navigator.pop(
                     sheetContext,
@@ -593,7 +595,7 @@ class _HomePageState extends State<HomePage> {
                   color: errorColor,
                 ),
                 title: Text(
-                  'Elimina',
+                  l('Elimina'),
                   style: TextStyle(color: errorColor),
                 ),
                 onTap: () {
@@ -654,7 +656,7 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 Navigator.pop(dialogContext);
               },
-              child: const Text('Ho capito'),
+              child: Text(l('Ho capito')),
             ),
           ],
         );
@@ -696,22 +698,22 @@ class _HomePageState extends State<HomePage> {
     final String value;
 
     if (isCurrentMonth) {
-      title = 'BUDGET GIORNALIERO';
+      title = l('BUDGET GIORNALIERO');
       value = formatEuro(dailySpendingLimit);
-      subtitle =
-          'tenendo conto delle spese da pagare e dei soldi che vuoi mettere da parte';
+      subtitle = le(
+        'tenendo conto delle spese da pagare e dei soldi che vuoi mettere da parte',
+        'based on upcoming expenses and the money you want to set aside',
+      );
     } else {
-      title = 'RISULTATO DEL MESE';
+      title = l('RISULTATO DEL MESE');
       value = formatEuro(balance);
 
       if (balance > 0) {
-        subtitle = 'Hai chiuso il mese in positivo';
+        subtitle = l('Hai chiuso il mese in positivo');
       } else if (balance < 0) {
-        subtitle =
-            'Le spese hanno superato le entrate';
+        subtitle = l('Le spese hanno superato le entrate');
       } else {
-        subtitle =
-            'Entrate e spese si sono compensate';
+        subtitle = l('Entrate e spese si sono compensate');
       }
     }
 
@@ -742,9 +744,10 @@ class _HomePageState extends State<HomePage> {
                 InkWell(
                   onTap: () {
                     showInfo(
-                      title: 'Puoi spendere oggi',
-                      message:
+                      title: l('Puoi spendere oggi'),
+                      message: l(
                           'È una stima di quanto puoi spendere oggi senza compromettere il resto del mese. Tiene conto del denaro disponibile e dei giorni che mancano alla fine del mese.',
+                        ),
                     );
                   },
                   borderRadius: BorderRadius.circular(20),
@@ -791,9 +794,9 @@ class _HomePageState extends State<HomePage> {
           ? FloatingActionButton.extended(
               onPressed: addTransaction,
               icon: const Icon(Icons.add),
-              label: const Text(
-                'Aggiungi movimento',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              label: Text(
+                l('Aggiungi movimento'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             )
           : null,
@@ -807,7 +810,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             onPressed: openSettings,
-            tooltip: 'Impostazioni',
+            tooltip: l('Impostazioni'),
             icon: const Icon(Icons.settings_outlined),
           ),
           const SizedBox(width: 8),
@@ -844,8 +847,8 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Text(
                     isCurrentMonth
-                        ? 'Disponibile'
-                        : 'Saldo del mese',
+                        ? l('Disponibile')
+                        : l('Saldo del mese'),
                     style: TextStyle(
                       fontSize: 15,
                       color: colors.onSurfaceVariant,
@@ -856,9 +859,10 @@ class _HomePageState extends State<HomePage> {
                     InkWell(
                       onTap: () {
                         showInfo(
-                          title: 'Disponibile',
-                          message:
+                          title: l('Disponibile'),
+                          message: l(
                               'È quello che ti resta davvero da spendere dopo aver considerato le spese già fatte, quelle da pagare, i soldi da mettere da parte per le scadenze a lungo termine e il tuo obiettivo di risparmio.',
+                            ),
                         );
                       },
                       borderRadius: BorderRadius.circular(20),
@@ -898,7 +902,10 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(width: 6),
                   Text(
                     isCurrentMonth
-                        ? '$daysRemainingInMonth giorni alla fine del mese'
+                        ? le(
+                            '$daysRemainingInMonth giorni alla fine del mese',
+                            '$daysRemainingInMonth days left this month',
+                          )
                         : selectedMonthLabel,
                     style: TextStyle(
                       fontSize: 13,
@@ -914,7 +921,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Expanded(
                     child: SummaryCard(
-                      title: 'Entrate',
+                      title: l('Entrate'),
                       value: formatEuro(totalIncome),
                       icon: Icons.arrow_downward_rounded,
                       iconColor: const Color(0xFF16865C),
@@ -924,15 +931,18 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: SummaryCard(
-                      title: 'Uscite',
+                      title: l('Uscite'),
                       value: formatEuro(totalAssignedMoney),
-                      subtitle:
+                      subtitle: le(
                           '${formatEuro(totalExpenses)} già spesi · ${formatEuro(plannedExpenses + savingsGoal)} già destinati',
+                          '${formatEuro(totalExpenses)} spent · ${formatEuro(plannedExpenses + savingsGoal)} set aside',
+                        ),
                       onInfo: () {
                         showInfo(
-                          title: 'Soldi già destinati',
-                          message:
+                          title: l('Soldi già destinati'),
+                          message: l(
                               'Comprendono i soldi già spesi, quelli che serviranno per le spese future e quelli che hai scelto di mettere da parte. In questo modo P.F. non considera disponibili soldi che ti serviranno più avanti.',
+                            ),
                         );
                       },
                       icon: Icons.arrow_upward_rounded,
@@ -959,8 +969,8 @@ class _HomePageState extends State<HomePage> {
                       mainAxisAlignment:
                           MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Percentuale spese/entrate',
+                        Text(
+                          l('Percentuale spese/entrate'),
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                           ),
@@ -987,8 +997,11 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 10),
                     Text(
                       totalIncome == 0
-                          ? 'Nessuna entrata registrata'
-                          : '${formatEuro(totalExpenses)} già spesi · ${formatEuro(plannedExpenses)} per spese future · ${formatEuro(savingsGoal)} da mettere da parte',
+                          ? l('Nessuna entrata registrata')
+                          : le(
+                              '${formatEuro(totalExpenses)} già spesi · ${formatEuro(plannedExpenses)} per spese future · ${formatEuro(savingsGoal)} da mettere da parte',
+                              '${formatEuro(totalExpenses)} spent · ${formatEuro(plannedExpenses)} for upcoming expenses · ${formatEuro(savingsGoal)} set aside',
+                            ),
                       style: TextStyle(
                         fontSize: 13,
                         color: colors.onSurfaceVariant,
@@ -1000,8 +1013,11 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 32),
               Text(
                 isCurrentMonth
-                    ? 'Analisi spese'
-                    : 'I tuoi soldi di ${monthNames[selectedMonth.month - 1]}',
+                    ? l('Analisi spese')
+                    : le(
+                        'I tuoi soldi di ${monthNames[selectedMonth.month - 1]}',
+                        'Your money in ${monthNames[selectedMonth.month - 1]}',
+                      ),
                 style: const TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w700,
@@ -1009,7 +1025,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Vedi quanto hai già speso e quanto hai già destinato.',
+                l('Vedi quanto hai già speso e quanto hai già destinato.'),
                 style: TextStyle(
                   fontSize: 14,
                   color: colors.onSurfaceVariant,
@@ -1044,7 +1060,7 @@ class _HomePageState extends State<HomePage> {
                       Icons.today_outlined,
                     ),
                     label: Text(
-                      'Torna a $currentMonthLabel',
+                      le('Torna a $currentMonthLabel', 'Back to $currentMonthLabel'),
                     ),
                   ),
                 ),
@@ -1053,8 +1069,11 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 6),
               Text(
                 isCurrentMonth
-                    ? 'Ultimi movimenti'
-                    : 'Movimenti di ${monthNames[selectedMonth.month - 1]}',
+                    ? l('Ultimi movimenti')
+                    : le(
+                        'Movimenti di ${monthNames[selectedMonth.month - 1]}',
+                        '${monthNames[selectedMonth.month - 1]} transactions',
+                      ),
                 style: const TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w700,
@@ -1062,7 +1081,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 5),
               Text(
-                'Tocca un movimento per modificarlo o eliminarlo.',
+                l('Tocca un movimento per modificarlo o eliminarlo.'),
                 style: TextStyle(
                   fontSize: 12,
                   color: colors.onSurfaceVariant,
@@ -1172,7 +1191,7 @@ class MonthSelector extends StatelessWidget {
                 ),
                 if (!isCurrentMonth)
                   Text(
-                    'Storico mensile',
+                    l('Storico mensile'),
                     style: TextStyle(
                       fontSize: 11,
                       color: colors.onSurfaceVariant,
@@ -1329,7 +1348,7 @@ class SpendingAnalysisCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    String centerTitle = 'Totale destinato';
+    String centerTitle = l('Totale destinato');
     String centerValue = formatEuro(totalAmount);
 
     if (touchedIndex >= 0 &&
@@ -1414,7 +1433,7 @@ class SpendingAnalysisCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Per categoria',
+              l('Per categoria'),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -1534,7 +1553,10 @@ class CategorySpendingRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${(percentage * 100).round()}% del totale',
+                  le(
+                    '${(percentage * 100).round()}% del totale',
+                    '${(percentage * 100).round()}% of total',
+                  ),
                   style: TextStyle(
                     fontSize: 11,
                     color: Theme.of(context)
@@ -1585,15 +1607,15 @@ class AnalysisEmptyState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
-            'Niente da mostrare',
+          Text(
+            l('Niente da mostrare'),
             style: TextStyle(
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 5),
           Text(
-            'Quando aggiungi spese o scegli dei soldi da mettere da parte, vedrai qui come sono distribuiti.',
+            l('Quando aggiungi spese o scegli dei soldi da mettere da parte, vedrai qui come sono distribuiti.'),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -1665,7 +1687,7 @@ class TransactionItem extends StatelessWidget {
                 children: [
                   Text(
                     transaction.description.isEmpty
-                        ? transaction.category
+                        ? localizedCategory(transaction.category)
                         : transaction.description,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1675,7 +1697,7 @@ class TransactionItem extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${transaction.category} · $formattedDate',
+                    '${localizedCategory(transaction.category)} · $formattedDate',
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context)
@@ -1731,15 +1753,15 @@ class EmptyTransactions extends StatelessWidget {
                 .onSurfaceVariant,
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Nessun movimento',
+          Text(
+            l('Nessun movimento'),
             style: TextStyle(
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 5),
           Text(
-            'Nessun movimento registrato per questo mese.',
+            l('Nessun movimento registrato per questo mese.'),
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Theme.of(context)

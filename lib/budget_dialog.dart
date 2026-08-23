@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'localization/app_language.dart';
+
 class BudgetResult {
   final double savingsGoal;
 
@@ -56,7 +58,7 @@ class _BudgetDialogState extends State<BudgetDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Obiettivo di risparmio'),
+      title: Text(l('Obiettivo di risparmio')),
       content: SizedBox(
         width: 400,
         child: TextFormField(
@@ -64,8 +66,8 @@ class _BudgetDialogState extends State<BudgetDialog> {
           keyboardType: const TextInputType.numberWithOptions(
             decimal: true,
           ),
-          decoration: const InputDecoration(
-            labelText: 'Quanto vuoi proteggere questo mese?',
+          decoration: InputDecoration(
+            labelText: l('Quanto vuoi proteggere questo mese?'),
             prefixText: '€ ',
           ),
           onChanged: (value) {
@@ -76,11 +78,11 @@ class _BudgetDialogState extends State<BudgetDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Annulla'),
+          child: Text(l('Annulla')),
         ),
         FilledButton(
           onPressed: save,
-          child: const Text('Salva'),
+          child: Text(l('Salva')),
         ),
       ],
     );

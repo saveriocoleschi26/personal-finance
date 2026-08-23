@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'database/database_service.dart';
 import 'home_page.dart';
+import 'localization/app_language.dart';
 import 'onboarding/onboarding_page.dart';
 import 'planning/planning_page.dart';
 
@@ -20,13 +21,20 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
 
+    AppLanguageController.instance.addListener(_languageChanged);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showOnboardingIfNeeded();
     });
   }
 
+  void _languageChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    AppLanguageController.instance.removeListener(_languageChanged);
     refreshNotifier.dispose();
     super.dispose();
   }
@@ -74,16 +82,16 @@ class _AppShellState extends State<AppShell> {
             selectedIndex = index;
           });
         },
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.event_note_outlined),
-            selectedIcon: Icon(Icons.event_note),
-            label: 'Pianifica',
+            icon: const Icon(Icons.event_note_outlined),
+            selectedIcon: const Icon(Icons.event_note),
+            label: l('Pianifica'),
           ),
         ],
       ),

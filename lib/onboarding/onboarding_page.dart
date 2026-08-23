@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../database/database_service.dart';
+import '../localization/app_language.dart';
 
 class OnboardingPage extends StatefulWidget {
   final bool markCompletedOnFinish;
@@ -19,26 +20,29 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   int currentPage = 0;
 
-  final List<_OnboardingStep> steps = const [
-    _OnboardingStep(
-      icon: Icons.account_balance_wallet_outlined,
-      title: 'Tieni sotto controllo il mese',
-      description:
-          'Il Disponibile considera ciò che hai già speso, le spese da pagare e i soldi che vuoi mettere da parte.',
-    ),
-    _OnboardingStep(
-      icon: Icons.event_note_outlined,
-      title: 'Pianifica in anticipo',
-      description:
-          'Inserisci spese previste, ricorrenti e scadenze a lungo termine. P.F. calcola quanto mettere da parte ogni mese prima delle scadenze.',
-    ),
-    _OnboardingStep(
-      icon: Icons.add_circle_outline,
-      title: 'Registra i movimenti in un tap',
-      description:
-          'Usa il pulsante “+ Movimento” sempre visibile nella Home per aggiungere rapidamente un’entrata o una spesa.',
-    ),
-  ];
+  List<_OnboardingStep> get steps => [
+        _OnboardingStep(
+          icon: Icons.account_balance_wallet_outlined,
+          title: l('Tieni sotto controllo il mese'),
+          description: l(
+            'Il Disponibile considera ciò che hai già speso, le spese da pagare e i soldi che vuoi mettere da parte.',
+          ),
+        ),
+        _OnboardingStep(
+          icon: Icons.event_note_outlined,
+          title: l('Pianifica in anticipo'),
+          description: l(
+            'Inserisci spese previste, ricorrenti e scadenze a lungo termine. P.F. calcola quanto mettere da parte ogni mese prima delle scadenze.',
+          ),
+        ),
+        _OnboardingStep(
+          icon: Icons.add_circle_outline,
+          title: l('Registra i movimenti in un tap'),
+          description: l(
+            'Usa il pulsante “+ Movimento” sempre visibile nella Home per aggiungere rapidamente un’entrata o una spesa.',
+          ),
+        ),
+      ];
 
   @override
   void dispose() {
@@ -81,7 +85,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           if (currentPage < steps.length - 1)
             TextButton(
               onPressed: finish,
-              child: const Text('Salta'),
+              child: Text(l('Salta')),
             ),
           const SizedBox(width: 8),
         ],
@@ -176,8 +180,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Text(
                           currentPage == steps.length - 1
-                              ? 'Inizia'
-                              : 'Avanti',
+                              ? l('Inizia')
+                              : l('Avanti'),
                         ),
                       ),
                     ),

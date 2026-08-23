@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../categories/category_selector.dart';
 import '../database/database_service.dart';
+import '../localization/app_language.dart';
 import '../recurring_expenses/recurring_expenses_page.dart';
 import 'planned_expense.dart';
 
@@ -30,20 +31,8 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
   List<PlannedExpense> expenses = [];
   bool isLoading = true;
 
-  final List<String> monthNames = const [
-    'gennaio',
-    'febbraio',
-    'marzo',
-    'aprile',
-    'maggio',
-    'giugno',
-    'luglio',
-    'agosto',
-    'settembre',
-    'ottobre',
-    'novembre',
-    'dicembre',
-  ];
+  List<String> get monthNames =>
+      AppLanguageController.instance.monthNamesForDates;
 
   @override
   void initState() {
@@ -65,16 +54,23 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
   }
 
   String formatEuro(double value) {
-    return '€ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
+    final fixed = value.toStringAsFixed(2);
+    return AppLanguageController.instance.isEnglish
+        ? '€ $fixed'
+        : '€ ${fixed.replaceAll('.', ',')}';
   }
 
   String formatDate(DateTime date) {
-    return '${date.day} ${monthNames[date.month - 1]} ${date.year}';
+    return AppLanguageController.instance.isEnglish
+        ? '${monthNames[date.month - 1]} ${date.day}, ${date.year}'
+        : '${date.day} ${monthNames[date.month - 1]} ${date.year}';
   }
 
   String get monthLabel {
     final name = monthNames[widget.month.month - 1];
-    return '${name[0].toUpperCase()}${name.substring(1)} ${widget.month.year}';
+    return AppLanguageController.instance.isEnglish
+        ? '$name ${widget.month.year}'
+        : '${name[0].toUpperCase()}${name.substring(1)} ${widget.month.year}';
   }
 
   double get unpaidTotal {
@@ -135,22 +131,25 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Registra pagamento'),
+          title: Text(l('Registra pagamento')),
           content: Text(
-            'Vuoi registrare "${expense.name}" come spesa pagata oggi per ${formatEuro(expense.amount)}?',
+            le(
+              'Vuoi registrare "${expense.name}" come spesa pagata oggi per ${formatEuro(expense.amount)}?',
+              'Record "${expense.name}" as paid today for ${formatEuro(expense.amount)}?',
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Annulla'),
+              child: Text(l('Annulla')),
             ),
             FilledButton(
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Registra'),
+              child: Text(l('Registra')),
             ),
           ],
         );
@@ -189,20 +188,26 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
       context: context,
       builder: (dialogContext) {
         final paidNotice = expense.isPaid
-            ? '\n\nIl movimento già registrato resterà nello storico delle spese.'
+            ? le(
+                '\n\nIl movimento già registrato resterà nello storico delle spese.',
+                '\n\nThe transaction already recorded will stay in your history.',
+              )
             : '';
 
         return AlertDialog(
-          title: const Text('Eliminare la spesa prevista?'),
+          title: Text(l('Eliminare la spesa prevista?')),
           content: Text(
-            'Vuoi eliminare "${expense.name}" dalla pianificazione?$paidNotice',
+            le(
+              'Vuoi eliminare "${expense.name}" dalla pianificazione?$paidNotice',
+              'Delete "${expense.name}" from your plan?$paidNotice',
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Annulla'),
+              child: Text(l('Annulla')),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -211,7 +216,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Elimina'),
+              child: Text(l('Elimina')),
             ),
           ],
         );
@@ -240,7 +245,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
               if (!expense.isPaid && !expense.isRecurring)
                 ListTile(
                   leading: const Icon(Icons.edit_outlined),
-                  title: const Text('Modifica'),
+                  title: Text(l('Modifica')),
                   onTap: () {
                     Navigator.pop(
                       sheetContext,
@@ -251,7 +256,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
               if (!expense.isPaid)
                 ListTile(
                   leading: const Icon(Icons.check_circle_outline),
-                  title: const Text('Registra pagamento'),
+                  title: Text(l('Registra pagamento')),
                   onTap: () {
                     Navigator.pop(
                       sheetContext,
@@ -262,7 +267,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
               if (expense.isRecurring)
                 ListTile(
                   leading: const Icon(Icons.repeat_rounded),
-                  title: const Text('Gestisci ricorrenza'),
+                  title: Text(l('Gestisci ricorrenza')),
                   onTap: () {
                     Navigator.pop(
                       sheetContext,
@@ -277,7 +282,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                     color: errorColor,
                   ),
                   title: Text(
-                    'Elimina',
+                    l('Elimina'),
                     style: TextStyle(color: errorColor),
                   ),
                   onTap: () {
@@ -319,7 +324,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Spese previste · $monthLabel',
+          le('Spese previste · $monthLabel', 'Planned expenses · $monthLabel'),
           style: const TextStyle(
             fontWeight: FontWeight.w700,
           ),
@@ -328,7 +333,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addExpense,
         icon: const Icon(Icons.add),
-        label: const Text('Aggiungi'),
+        label: Text(l('Aggiungi')),
       ),
       body: isLoading
           ? const Center(
@@ -355,7 +360,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'ANCORA DA PAGARE',
+                          l('ANCORA DA PAGARE'),
                           style: TextStyle(
                             color: colors.onPrimary.withValues(alpha: 0.75),
                             fontSize: 12,
@@ -374,7 +379,10 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '${formatEuro(paidTotal)} già registrate come pagate',
+                          le(
+                            '${formatEuro(paidTotal)} già registrate come pagate',
+                            '${formatEuro(paidTotal)} already recorded as paid',
+                          ),
                           style: TextStyle(
                             color: colors.onPrimary.withValues(alpha: 0.80),
                           ),
@@ -383,8 +391,8 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  const Text(
-                    'Voci del mese',
+                  Text(
+                    l('Voci del mese'),
                     style: TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.w700,
@@ -392,7 +400,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Le ricorrenti vengono create automaticamente. Tocca una voce per le azioni disponibili.',
+                    l('Le ricorrenti vengono create automaticamente. Tocca una voce per le azioni disponibili.'),
                     style: TextStyle(
                       fontSize: 13,
                       color: colors.onSurfaceVariant,
@@ -418,15 +426,15 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                             color: colors.onSurfaceVariant,
                           ),
                           const SizedBox(height: 14),
-                          const Text(
-                            'Nessuna spesa prevista',
+                          Text(
+                            l('Nessuna spesa prevista'),
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Aggiungi affitto, telefono, palestra o qualsiasi altra spesa che sai già di dover sostenere nel mese.',
+                            l('Aggiungi affitto, telefono, palestra o qualsiasi altra spesa che sai già di dover sostenere nel mese.'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 13,
@@ -544,10 +552,10 @@ class PlannedExpenseRow extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   expense.isPaid
-                      ? '${expense.category} · ${expense.isRecurring ? 'Ricorrente · ' : ''}Pagata'
+                      ? '${localizedCategory(expense.category)} · ${expense.isRecurring ? '${l('Ricorrente')} · ' : ''}${l('Pagata')}'
                       : expense.isRecurring
-                          ? '${expense.category} · Ricorrente · Scadenza ${formatDate(expense.dueDate)}'
-                          : '${expense.category} · Scadenza ${formatDate(expense.dueDate)}',
+                          ? '${localizedCategory(expense.category)} · ${l('Ricorrente')} · ${l('Scadenza')} ${formatDate(expense.dueDate)}'
+                          : '${localizedCategory(expense.category)} · ${l('Scadenza')} ${formatDate(expense.dueDate)}',
                   style: TextStyle(
                     fontSize: 12,
                     color: colors.onSurfaceVariant,
@@ -615,7 +623,9 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
   String formatDate(DateTime date) {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
-    return '$day/$month/${date.year}';
+    return AppLanguageController.instance.isEnglish
+        ? '$month/$day/${date.year}'
+        : '$day/$month/${date.year}';
   }
 
   Future<void> selectDueDate() async {
@@ -636,7 +646,7 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
       initialDate: dueDate,
       firstDate: firstDate,
       lastDate: lastDate,
-      helpText: 'Seleziona la scadenza',
+      helpText: l('Seleziona la scadenza'),
     );
 
     if (selected == null || !mounted) return;
@@ -659,8 +669,8 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
 
     if (cleanName.isEmpty || amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inserisci nome e importo validi'),
+        SnackBar(
+          content: Text(l('Inserisci nome e importo validi')),
         ),
       );
       return;
@@ -686,8 +696,8 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
     return AlertDialog(
       title: Text(
         isEditing
-            ? 'Modifica spesa prevista'
-            : 'Nuova spesa prevista',
+            ? l('Modifica spesa prevista')
+            : l('Nuova spesa prevista'),
       ),
       content: SizedBox(
         width: 400,
@@ -697,9 +707,9 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
             children: [
               TextFormField(
                 initialValue: name,
-                decoration: const InputDecoration(
-                  labelText: 'Nome',
-                  hintText: 'Es. Affitto',
+                decoration: InputDecoration(
+                  labelText: l('Nome'),
+                  hintText: l('Es. Affitto'),
                 ),
                 onChanged: (value) {
                   name = value;
@@ -711,10 +721,10 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Importo',
+                decoration: InputDecoration(
+                  labelText: l('Importo'),
                   prefixText: '€ ',
-                  hintText: 'Es. 500',
+                  hintText: l('Es. 500'),
                 ),
                 onChanged: (value) {
                   amountText = value;
@@ -735,8 +745,8 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
                 onTap: selectDueDate,
                 borderRadius: BorderRadius.circular(16),
                 child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Scadenza',
+                  decoration: InputDecoration(
+                    labelText: l('Scadenza'),
                     suffixIcon: Icon(Icons.calendar_today_outlined),
                   ),
                   child: Text(
@@ -753,12 +763,12 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
           onPressed: () {
             Navigator.pop(context);
           },
-          child: const Text('Annulla'),
+          child: Text(l('Annulla')),
         ),
         FilledButton(
           onPressed: save,
           child: Text(
-            isEditing ? 'Salva modifiche' : 'Aggiungi',
+            isEditing ? l('Salva modifiche') : l('Aggiungi'),
           ),
         ),
       ],
