@@ -33,13 +33,14 @@ class _HomePageState extends State<HomePage> {
   final List<FinanceTransaction> transactions = [];
   List<AnnualExpense> annualExpenses = [];
   List<PlannedExpense> monthlyPlannedExpenses = [];
-  List<ExpenseCategory> categories = [];
-
   double savingsGoal = 0;
 
   int touchedCategoryIndex = -1;
   bool isLoading = true;
   bool showAllTransactions = false;
+  bool _skipNextExternalRefresh = false;
+
+  Map<String, ExpenseCategory> _categoriesByName = {};
 
   late DateTime selectedMonth;
 
@@ -68,7 +69,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _externalRefresh() {
+    if (_skipNextExternalRefresh) {
+      _skipNextExternalRefresh = false;
+      return;
+    }
+
     loadSelectedMonthData();
+  }
+
+  void _notifyOtherPages() {
+    _skipNextExternalRefresh = true;
+    widget.onDataChanged();
   }
 
   bool get isCurrentMonth {
@@ -98,6 +109,7 @@ class _HomePageState extends State<HomePage> {
 
       isLoading = true;
       touchedCategoryIndex = -1;
+      showAllTransactions = false;
     });
 
     await loadSelectedMonthData();
@@ -128,6 +140,7 @@ class _HomePageState extends State<HomePage> {
       selectedMonth = next;
       isLoading = true;
       touchedCategoryIndex = -1;
+      showAllTransactions = false;
     });
 
     await loadSelectedMonthData();
@@ -145,6 +158,7 @@ class _HomePageState extends State<HomePage> {
 
       isLoading = true;
       touchedCategoryIndex = -1;
+      showAllTransactions = false;
     });
 
     await loadSelectedMonthData();
@@ -153,28 +167,21 @@ class _HomePageState extends State<HomePage> {
   Future<void> loadSelectedMonthData() async {
     final monthToLoad = selectedMonth;
 
-    final savedTransactions =
-        await DatabaseService.instance.getTransactionsForMonth(
-      monthToLoad,
-    );
+    // Avviamo le letture insieme: SQLite le gestisce in modo sicuro e
+    // la Home non aspetta cinque operazioni una dopo l'altra.
+    final database = DatabaseService.instance;
+    final transactionsFuture = database.getTransactionsForMonth(monthToLoad);
+    final budgetFuture = database.getMonthlyBudget(monthToLoad);
+    final annualExpensesFuture = database.getAnnualExpenses();
+    final plannedExpensesFuture =
+        database.getPlannedExpensesForMonth(monthToLoad);
+    final categoriesFuture = database.getCategories(includeInactive: true);
 
-    final savedBudget =
-        await DatabaseService.instance.getMonthlyBudget(
-      monthToLoad,
-    );
-
-    final savedAnnualExpenses =
-        await DatabaseService.instance.getAnnualExpenses();
-
-    final savedPlannedExpenses =
-        await DatabaseService.instance.getPlannedExpensesForMonth(
-      monthToLoad,
-    );
-
-    final savedCategories =
-        await DatabaseService.instance.getCategories(
-      includeInactive: true,
-    );
+    final savedTransactions = await transactionsFuture;
+    final savedBudget = await budgetFuture;
+    final savedAnnualExpenses = await annualExpensesFuture;
+    final savedPlannedExpenses = await plannedExpensesFuture;
+    final savedCategories = await categoriesFuture;
 
     if (!mounted) return;
 
@@ -190,7 +197,9 @@ class _HomePageState extends State<HomePage> {
       savingsGoal = savedBudget['savingsGoal'] ?? 0;
       annualExpenses = savedAnnualExpenses;
       monthlyPlannedExpenses = savedPlannedExpenses;
-      categories = savedCategories;
+      _categoriesByName = {
+        for (final category in savedCategories) category.name: category,
+      };
 
       touchedCategoryIndex = -1;
       isLoading = false;
@@ -311,8 +320,8 @@ class _HomePageState extends State<HomePage> {
   // - spese pianificate ancora da pagare (incluse le ricorrenti)
   // - quota del mese per le scadenze a lungo termine
   // - soldi che l'utente vuole mettere da parte
-  Map<String, double> get assignedMoneyByCategory {
-    final Map<String, double> result = {};
+  _AnalysisSnapshot _buildAnalysisSnapshot() {
+    final result = <String, double>{};
 
     void addAmount(String category, double amount) {
       if (amount <= 0) return;
@@ -330,16 +339,14 @@ class _HomePageState extends State<HomePage> {
       addAmount(transaction.category, transaction.amount);
     }
 
-    // Spese del mese ancora da pagare. Le spese ricorrenti sono già
-    // presenti qui come PlannedExpense, quindi non vanno aggiunte
-    // una seconda volta.
+    // Le ricorrenti ancora da pagare sono già presenti come PlannedExpense,
+    // quindi vengono conteggiate qui una sola volta.
     for (final expense in monthlyPlannedExpenses) {
       if (expense.isPaid) continue;
       addAmount(expense.category, expense.amount);
     }
 
-    // Scadenze a lungo termine: entra nel grafico soltanto ciò che
-    // deve essere messo da parte / pagato nel mese selezionato.
+    // Per le scadenze a lungo termine entra solo la quota del mese.
     for (final expense in annualExpenses) {
       addAmount(
         expense.category,
@@ -347,29 +354,19 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    // Il risparmio è una destinazione dei soldi a tutti gli effetti,
-    // ma usiamo una chiave interna per non confonderlo con una
-    // categoria personalizzata che potrebbe chiamarsi "Risparmio".
     addAmount(_savingsAnalysisKey, savingsGoal);
 
-    return result;
-  }
-
-  double get analysisTotal {
-    return assignedMoneyByCategory.values.fold(
-      0.0,
-      (sum, amount) => sum + amount,
-    );
-  }
-
-  List<MapEntry<String, double>> get sortedCategoryExpenses {
-    final entries = assignedMoneyByCategory.entries.toList();
-
-    entries.sort(
-      (a, b) => b.value.compareTo(a.value),
+    final entries = result.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final total = entries.fold<double>(
+      0,
+      (sum, entry) => sum + entry.value,
     );
 
-    return entries;
+    return _AnalysisSnapshot(
+      entries: entries,
+      total: total,
+    );
   }
 
   List<FinanceTransaction> get visibleTransactions {
@@ -380,10 +377,6 @@ class _HomePageState extends State<HomePage> {
     return transactions.take(4).toList();
   }
 
-  double categoryPercentage(double amount) {
-    if (analysisTotal <= 0) return 0;
-    return amount / analysisTotal;
-  }
 
   String analysisCategoryLabel(String category) {
     if (category == _savingsAnalysisKey) {
@@ -394,13 +387,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   ExpenseCategory? categoryDetails(String name) {
-    for (final category in categories) {
-      if (category.name == name) {
-        return category;
-      }
-    }
-
-    return null;
+    return _categoriesByName[name];
   }
 
   Color categoryColor(String category) {
@@ -472,10 +459,10 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
-    widget.onDataChanged();
     await loadSelectedMonthData();
 
     if (!mounted) return;
+    _notifyOtherPages();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -524,8 +511,10 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
-    widget.onDataChanged();
     await loadSelectedMonthData();
+
+    if (!mounted) return;
+    _notifyOtherPages();
   }
 
   Future<void> deleteTransaction(
@@ -576,8 +565,10 @@ class _HomePageState extends State<HomePage> {
       transaction.id!,
     );
 
-    widget.onDataChanged();
     await loadSelectedMonthData();
+
+    if (!mounted) return;
+    _notifyOtherPages();
   }
 
   Future<void> showTransactionActions(
@@ -650,8 +641,10 @@ class _HomePageState extends State<HomePage> {
 
     if (!mounted) return;
 
-    widget.onDataChanged();
     await loadSelectedMonthData();
+
+    if (!mounted) return;
+    _notifyOtherPages();
   }
 
   Future<void> showInfo({
@@ -680,15 +673,18 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  List<PieChartSectionData> buildPieSections() {
-    final entries = sortedCategoryExpenses;
-
+  List<PieChartSectionData> buildPieSections(
+    List<MapEntry<String, double>> entries,
+    double totalAmount,
+  ) {
     return List.generate(
       entries.length,
       (index) {
         final entry = entries[index];
         final isTouched = index == touchedCategoryIndex;
-        final percentage = categoryPercentage(entry.value) * 100;
+        final percentage = totalAmount <= 0
+            ? 0.0
+            : (entry.value / totalAmount) * 100;
 
         return PieChartSectionData(
           color: categoryColor(entry.key),
@@ -946,6 +942,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     const teal = Color(0xFF0B8D86);
+    final analysis = _buildAnalysisSnapshot();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7FAF9),
@@ -966,12 +963,12 @@ class _HomePageState extends State<HomePage> {
         toolbarHeight: 68,
         titleSpacing: 20,
         title: const Text(
-          'P.F.',
+          'Personal finance',
           style: TextStyle(
             color: teal,
-            fontSize: 27,
+            fontSize: 24,
             fontWeight: FontWeight.w800,
-            letterSpacing: 0.4,
+            letterSpacing: -0.4,
           ),
         ),
         actions: [
@@ -1000,11 +997,9 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 2, 18, 112),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        children: [
             MonthSelector(
               label: selectedMonthLabel,
               isCurrentMonth: isCurrentMonth,
@@ -1024,14 +1019,17 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 18),
               buildOverviewGrid(),
               const SizedBox(height: 20),
-              if (analysisTotal == 0)
+              if (analysis.total == 0)
                 const AnalysisEmptyState()
               else
                 SpendingAnalysisCard(
-                  entries: sortedCategoryExpenses,
-                  totalAmount: analysisTotal,
+                  entries: analysis.entries,
+                  totalAmount: analysis.total,
                   touchedIndex: touchedCategoryIndex,
-                  pieSections: buildPieSections(),
+                  pieSections: buildPieSections(
+                    analysis.entries,
+                    analysis.total,
+                  ),
                   categoryColor: categoryColor,
                   categoryLabel: analysisCategoryLabel,
                   formatEuro: formatEuro,
@@ -1082,10 +1080,19 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ],
-        ),
       ),
     );
   }
+}
+
+class _AnalysisSnapshot {
+  final List<MapEntry<String, double>> entries;
+  final double total;
+
+  const _AnalysisSnapshot({
+    required this.entries,
+    required this.total,
+  });
 }
 
 class MonthSelector extends StatelessWidget {
@@ -1361,24 +1368,28 @@ class SpendingAnalysisCard extends StatelessWidget {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        PieChart(
-                          PieChartData(
-                            sections: pieSections,
-                            centerSpaceRadius: chartSize * 0.30,
-                            sectionsSpace: 2.2,
-                            borderData: FlBorderData(show: false),
-                            pieTouchData: PieTouchData(
-                              touchCallback: (event, response) {
-                                if (!event.isInterestedForInteractions ||
-                                    response?.touchedSection == null) {
-                                  onTouched(-1);
-                                  return;
-                                }
+                        RepaintBoundary(
+                          child: PieChart(
+                            PieChartData(
+                              sections: pieSections,
+                              centerSpaceRadius: chartSize * 0.30,
+                              sectionsSpace: 2.2,
+                              borderData: FlBorderData(show: false),
+                              pieTouchData: PieTouchData(
+                                touchCallback: (event, response) {
+                                  if (!event.isInterestedForInteractions ||
+                                      response?.touchedSection == null) {
+                                    onTouched(-1);
+                                    return;
+                                  }
 
-                                onTouched(
-                                  response!.touchedSection!.touchedSectionIndex,
-                                );
-                              },
+                                  onTouched(
+                                    response!
+                                        .touchedSection!
+                                        .touchedSectionIndex,
+                                  );
+                                },
+                              ),
                             ),
                           ),
                         ),

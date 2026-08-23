@@ -15,6 +15,8 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int selectedIndex = 0;
+  bool _planningInitialized = false;
+
   final ValueNotifier<int> refreshNotifier = ValueNotifier<int>(0);
 
   @override
@@ -69,10 +71,13 @@ class _AppShellState extends State<AppShell> {
             refreshNotifier: refreshNotifier,
             onDataChanged: notifyDataChanged,
           ),
-          PlanningPage(
-            refreshNotifier: refreshNotifier,
-            onDataChanged: notifyDataChanged,
-          ),
+          if (_planningInitialized)
+            PlanningPage(
+              refreshNotifier: refreshNotifier,
+              onDataChanged: notifyDataChanged,
+            )
+          else
+            const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: NavigationBarTheme(
@@ -107,6 +112,9 @@ class _AppShellState extends State<AppShell> {
           onDestinationSelected: (index) {
             setState(() {
               selectedIndex = index;
+              if (index == 1) {
+                _planningInitialized = true;
+              }
             });
           },
           destinations: [
