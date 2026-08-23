@@ -17,7 +17,7 @@ class PersonalFinanceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const seedColor = Color(0xFF3158D4);
+    const seedColor = Color(0xFF0B8D86);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -28,9 +28,9 @@ class PersonalFinanceApp extends StatelessWidget {
           seedColor: seedColor,
           brightness: Brightness.light,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF8F9FC),
+        scaffoldBackgroundColor: const Color(0xFFF7FAF9),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF8F9FC),
+          backgroundColor: Color(0xFFF7FAF9),
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           centerTitle: false,

@@ -39,6 +39,7 @@ class _HomePageState extends State<HomePage> {
 
   int touchedCategoryIndex = -1;
   bool isLoading = true;
+  bool showAllTransactions = false;
 
   late DateTime selectedMonth;
 
@@ -243,6 +244,13 @@ class _HomePageState extends State<HomePage> {
     return totalExpenses + plannedExpenses;
   }
 
+  // Spese del mese escluse le quote delle scadenze a lungo termine
+  // e l'obiettivo di risparmio. In questo modo le quattro card della
+  // Home non si sovrappongono tra loro.
+  double get monthlyOutgoings {
+    return totalExpenses + monthlyPlanningCommitment;
+  }
+
   // Tutti i soldi che l'utente ha già destinato nel mese:
   // spese già fatte, spese da pagare e obiettivo di risparmio.
   double get totalAssignedMoney {
@@ -362,6 +370,14 @@ class _HomePageState extends State<HomePage> {
     );
 
     return entries;
+  }
+
+  List<FinanceTransaction> get visibleTransactions {
+    if (showAllTransactions || transactions.length <= 4) {
+      return transactions;
+    }
+
+    return transactions.take(4).toList();
   }
 
   double categoryPercentage(double amount) {
@@ -671,113 +687,192 @@ class _HomePageState extends State<HomePage> {
       entries.length,
       (index) {
         final entry = entries[index];
-        final isTouched =
-            index == touchedCategoryIndex;
-        final percentage =
-            categoryPercentage(entry.value) * 100;
+        final isTouched = index == touchedCategoryIndex;
+        final percentage = categoryPercentage(entry.value) * 100;
 
         return PieChartSectionData(
           color: categoryColor(entry.key),
           value: entry.value,
-          radius: isTouched ? 34 : 28,
-          showTitle: percentage >= 8,
+          radius: isTouched ? 31 : 27,
+          showTitle: percentage >= 9,
           title: '${percentage.round()}%',
           titleStyle: const TextStyle(
             color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
           ),
         );
       },
     );
   }
 
-  Widget buildHeroCard(ColorScheme colors) {
-    final String title;
-    final String subtitle;
-    final String value;
+  Widget buildHeroCard() {
+    final value = isCurrentMonth ? availableMoney : balance;
+    final title = isCurrentMonth ? l('Disponibile') : l('Saldo del mese');
 
+    final String footer;
     if (isCurrentMonth) {
-      title = l('BUDGET GIORNALIERO');
-      value = formatEuro(dailySpendingLimit);
-      subtitle = le(
-        'tenendo conto delle spese da pagare e dei soldi che vuoi mettere da parte',
-        'based on upcoming expenses and the money you want to set aside',
+      footer = le(
+        'Budget giornaliero ${formatEuro(dailySpendingLimit)}',
+        'Daily budget ${formatEuro(dailySpendingLimit)}',
       );
+    } else if (balance > 0) {
+      footer = l('Hai chiuso il mese in positivo');
+    } else if (balance < 0) {
+      footer = l('Le spese hanno superato le entrate');
     } else {
-      title = l('RISULTATO DEL MESE');
-      value = formatEuro(balance);
-
-      if (balance > 0) {
-        subtitle = l('Hai chiuso il mese in positivo');
-      } else if (balance < 0) {
-        subtitle = l('Le spese hanno superato le entrate');
-      } else {
-        subtitle = l('Entrate e spese si sono compensate');
-      }
+      footer = l('Entrate e spese si sono compensate');
     }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      height: 205,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: colors.primary,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF087F79),
+            Color(0xFF159B94),
+            Color(0xFF42B7AF),
+          ],
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x260B827C),
+            blurRadius: 26,
+            offset: Offset(0, 12),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: colors.onPrimary.withValues(alpha: 0.75),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
+          const Positioned.fill(
+            child: CustomPaint(
+              painter: _HeroWavesPainter(),
+            ),
+          ),
+          Positioned(
+            right: 20,
+            top: 48,
+            child: Opacity(
+              opacity: 0.92,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(
+                    Icons.account_balance_wallet_outlined,
+                    color: Colors.white,
+                    size: 66,
                   ),
-                ),
-              ),
-              if (isCurrentMonth)
-                InkWell(
-                  onTap: () {
-                    showInfo(
-                      title: l('Puoi spendere oggi'),
-                      message: l(
-                          'È una stima di quanto puoi spendere oggi senza compromettere il resto del mese. Tiene conto del denaro disponibile e dei giorni che mancano alla fine del mese.',
+                  Positioned(
+                    right: -4,
+                    bottom: -8,
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF087F79),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
                         ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.info_outline_rounded,
-                      size: 19,
-                      color: colors.onPrimary.withValues(alpha: 0.82),
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Positioned(
+            right: 44,
+            top: 28,
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0xAFFFFFFF),
+              size: 20,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 23, 106, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (isCurrentMonth) ...[
+                      const SizedBox(width: 5),
+                      InkWell(
+                        onTap: () {
+                          showInfo(
+                            title: l('Disponibile'),
+                            message: l(
+                              'È quello che ti resta davvero da spendere dopo aver considerato le spese già fatte, quelle da pagare, i soldi da mettere da parte per le scadenze a lungo termine e il tuo obiettivo di risparmio.',
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: const Padding(
+                          padding: EdgeInsets.all(3),
+                          child: Icon(
+                            Icons.info_outline_rounded,
+                            color: Color(0xDFFFFFFF),
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 9),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    formatEuro(value),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 43,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1.5,
                     ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              color: colors.onPrimary,
-              fontSize: 38,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: colors.onPrimary.withValues(alpha: 0.80),
-              fontSize: 14,
+                const Spacer(),
+                Container(
+                  width: 190,
+                  height: 1,
+                  color: const Color(0x55FFFFFF),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  footer,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xEFFFFFFF),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -785,44 +880,128 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget buildOverviewGrid() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OverviewCard(
+                title: l('Entrate'),
+                value: formatEuro(totalIncome),
+                icon: Icons.trending_up_rounded,
+                accentColor: const Color(0xFF119B6B),
+                iconBackground: const Color(0xFFE1F5EC),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OverviewCard(
+                title: l('Uscite'),
+                value: formatEuro(monthlyOutgoings),
+                icon: Icons.trending_down_rounded,
+                accentColor: const Color(0xFFE04F4F),
+                iconBackground: const Color(0xFFFFE9E7),
+                onInfo: () {
+                  showInfo(
+                    title: l('Uscite'),
+                    message: le(
+                      'Comprendono le spese già fatte e quelle del mese ancora da pagare, incluse le ricorrenti.',
+                      'This includes expenses already paid and expenses still due this month, including recurring ones.',
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OverviewCard(
+                title: le('Da mettere da parte', 'Set aside'),
+                value: formatEuro(savingsGoal),
+                icon: Icons.savings_outlined,
+                accentColor: const Color(0xFF287AD6),
+                iconBackground: const Color(0xFFE5F0FC),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OverviewCard(
+                title: l('Scadenze a lungo termine'),
+                value: formatEuro(annualPlanningCommitment),
+                icon: Icons.calendar_month_outlined,
+                accentColor: const Color(0xFF7556C8),
+                iconBackground: const Color(0xFFF0EAFB),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    const teal = Color(0xFF0B8D86);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF7FAF9),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: isCurrentMonth && !isLoading
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
               onPressed: addTransaction,
-              icon: const Icon(Icons.add),
-              label: Text(
-                l('Aggiungi movimento'),
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
+              tooltip: l('Aggiungi movimento'),
+              backgroundColor: teal,
+              foregroundColor: Colors.white,
+              elevation: 5,
+              shape: const CircleBorder(),
+              child: const Icon(Icons.add_rounded, size: 30),
             )
           : null,
       appBar: AppBar(
+        backgroundColor: const Color(0xFFF7FAF9),
+        toolbarHeight: 68,
+        titleSpacing: 20,
         title: const Text(
-          'Personal Finance',
+          'P.F.',
           style: TextStyle(
-            fontWeight: FontWeight.w700,
+            color: teal,
+            fontSize: 27,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.4,
           ),
         ),
         actions: [
-          IconButton(
-            onPressed: openSettings,
-            tooltip: l('Impostazioni'),
-            icon: const Icon(Icons.settings_outlined),
+          Container(
+            margin: const EdgeInsets.only(right: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFE7ECEB)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0D000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: IconButton(
+              onPressed: openSettings,
+              tooltip: l('Impostazioni'),
+              icon: const Icon(
+                Icons.settings_outlined,
+                color: teal,
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          20,
-          8,
-          20,
-          110,
-        ),
+        padding: const EdgeInsets.fromLTRB(18, 2, 18, 112),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -830,208 +1009,21 @@ class _HomePageState extends State<HomePage> {
               label: selectedMonthLabel,
               isCurrentMonth: isCurrentMonth,
               onPrevious: goToPreviousMonth,
-              onNext: isCurrentMonth
-                  ? null
-                  : goToNextMonth,
+              onNext: isCurrentMonth ? null : goToNextMonth,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
             if (isLoading)
               const SizedBox(
-                height: 420,
+                height: 480,
                 child: Center(
                   child: CircularProgressIndicator(),
                 ),
               )
             else ...[
-              Row(
-                children: [
-                  Text(
-                    isCurrentMonth
-                        ? l('Disponibile')
-                        : l('Saldo del mese'),
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  if (isCurrentMonth) ...[
-                    const SizedBox(width: 4),
-                    InkWell(
-                      onTap: () {
-                        showInfo(
-                          title: l('Disponibile'),
-                          message: l(
-                              'È quello che ti resta davvero da spendere dopo aver considerato le spese già fatte, quelle da pagare, i soldi da mettere da parte per le scadenze a lungo termine e il tuo obiettivo di risparmio.',
-                            ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(3),
-                        child: Icon(
-                          Icons.info_outline_rounded,
-                          size: 18,
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                formatEuro(
-                  isCurrentMonth ? availableMoney : balance,
-                ),
-                style: const TextStyle(
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -1,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Icon(
-                    isCurrentMonth
-                        ? Icons.calendar_today_outlined
-                        : Icons.history_outlined,
-                    size: 15,
-                    color: colors.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isCurrentMonth
-                        ? le(
-                            '$daysRemainingInMonth giorni alla fine del mese',
-                            '$daysRemainingInMonth days left this month',
-                          )
-                        : selectedMonthLabel,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              buildHeroCard(colors),
+              buildHeroCard(),
+              const SizedBox(height: 18),
+              buildOverviewGrid(),
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: SummaryCard(
-                      title: l('Entrate'),
-                      value: formatEuro(totalIncome),
-                      icon: Icons.arrow_downward_rounded,
-                      iconColor: const Color(0xFF16865C),
-                      iconBackground: const Color(0xFFE5F6EF),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SummaryCard(
-                      title: l('Uscite'),
-                      value: formatEuro(totalAssignedMoney),
-                      subtitle: le(
-                          '${formatEuro(totalExpenses)} già spesi · ${formatEuro(plannedExpenses + savingsGoal)} già destinati',
-                          '${formatEuro(totalExpenses)} spent · ${formatEuro(plannedExpenses + savingsGoal)} set aside',
-                        ),
-                      onInfo: () {
-                        showInfo(
-                          title: l('Soldi già destinati'),
-                          message: l(
-                              'Comprendono i soldi già spesi, quelli che serviranno per le spese future e quelli che hai scelto di mettere da parte. In questo modo P.F. non considera disponibili soldi che ti serviranno più avanti.',
-                            ),
-                        );
-                      },
-                      icon: Icons.arrow_upward_rounded,
-                      iconColor: const Color(0xFFC34949),
-                      iconBackground: const Color(0xFFFFEBEB),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFFE9EAF0),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          l('Percentuale spese/entrate'),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          '${(spendingPercentage * 100).round()}%',
-                          style: TextStyle(
-                            color: colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(100),
-                      child: LinearProgressIndicator(
-                        value: spendingPercentage,
-                        minHeight: 8,
-                        backgroundColor:
-                            colors.surfaceContainerHighest,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      totalIncome == 0
-                          ? l('Nessuna entrata registrata')
-                          : le(
-                              '${formatEuro(totalExpenses)} già spesi · ${formatEuro(plannedExpenses)} per spese future · ${formatEuro(savingsGoal)} da mettere da parte',
-                              '${formatEuro(totalExpenses)} spent · ${formatEuro(plannedExpenses)} for upcoming expenses · ${formatEuro(savingsGoal)} set aside',
-                            ),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              Text(
-                isCurrentMonth
-                    ? l('Analisi spese')
-                    : le(
-                        'I tuoi soldi di ${monthNames[selectedMonth.month - 1]}',
-                        'Your money in ${monthNames[selectedMonth.month - 1]}',
-                      ),
-                style: const TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                l('Vedi quanto hai già speso e quanto hai già destinato.'),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 14),
               if (analysisTotal == 0)
                 const AnalysisEmptyState()
               else
@@ -1041,7 +1033,6 @@ class _HomePageState extends State<HomePage> {
                   touchedIndex: touchedCategoryIndex,
                   pieSections: buildPieSections(),
                   categoryColor: categoryColor,
-                  categoryIcon: categoryIcon,
                   categoryLabel: analysisCategoryLabel,
                   formatEuro: formatEuro,
                   onTouched: (index) {
@@ -1050,87 +1041,45 @@ class _HomePageState extends State<HomePage> {
                     });
                   },
                 ),
-              const SizedBox(height: 28),
               if (!isCurrentMonth) ...[
+                const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: goToCurrentMonth,
-                    icon: const Icon(
-                      Icons.today_outlined,
-                    ),
+                    icon: const Icon(Icons.today_outlined),
                     label: Text(
-                      le('Torna a $currentMonthLabel', 'Back to $currentMonthLabel'),
+                      le(
+                        'Torna a $currentMonthLabel',
+                        'Back to $currentMonthLabel',
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 34),
-              ] else
-                const SizedBox(height: 6),
-              Text(
-                isCurrentMonth
+              ],
+              const SizedBox(height: 20),
+              RecentTransactionsCard(
+                title: isCurrentMonth
                     ? l('Ultimi movimenti')
                     : le(
                         'Movimenti di ${monthNames[selectedMonth.month - 1]}',
                         '${monthNames[selectedMonth.month - 1]} transactions',
                       ),
-                style: const TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w700,
-                ),
+                transactions: visibleTransactions,
+                showAll: showAllTransactions,
+                formatEuro: formatEuro,
+                formatDate: formatDate,
+                categoryIcon: categoryIcon,
+                categoryColor: categoryColor,
+                onToggleAll: transactions.length > 4
+                    ? () {
+                        setState(() {
+                          showAllTransactions = !showAllTransactions;
+                        });
+                      }
+                    : null,
+                onTransactionTap: showTransactionActions,
               ),
-              const SizedBox(height: 5),
-              Text(
-                l('Tocca un movimento per modificarlo o eliminarlo.'),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (transactions.isEmpty)
-                const EmptyTransactions()
-              else
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: const Color(0xFFE9EAF0),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      for (int i = 0;
-                          i < transactions.length;
-                          i++) ...[
-                        TransactionItem(
-                          transaction: transactions[i],
-                          formattedAmount:
-                              formatEuro(transactions[i].amount),
-                          formattedDate:
-                              formatDate(transactions[i].date),
-                          categoryIcon: categoryIcon(
-                            transactions[i].category,
-                          ),
-                          categoryColor: categoryColor(
-                            transactions[i].category,
-                          ),
-                          onTap: () {
-                            showTransactionActions(
-                              transactions[i],
-                            );
-                          },
-                        ),
-                        if (i != transactions.length - 1)
-                          const Divider(
-                            height: 1,
-                            indent: 68,
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
             ],
           ],
         ),
@@ -1155,165 +1104,174 @@ class MonthSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    const teal = Color(0xFF0B8D86);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 6,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
+    Widget arrowButton({
+      required IconData icon,
+      required VoidCallback? onPressed,
+    }) {
+      return Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFE9EAF0),
+        shape: const CircleBorder(),
+        elevation: onPressed == null ? 0 : 1,
+        shadowColor: const Color(0x14000000),
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon),
+          color: onPressed == null
+              ? const Color(0xFFCAD2D0)
+              : teal,
+          iconSize: 25,
+          tooltip: null,
         ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onPrevious,
-            icon: const Icon(
-              Icons.chevron_left,
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
+      );
+    }
+
+    return Row(
+      children: [
+        arrowButton(
+          icon: Icons.chevron_left_rounded,
+          onPressed: onPrevious,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            children: [
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF14263A),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              if (!isCurrentMonth) ...[
+                const SizedBox(height: 2),
                 Text(
-                  label,
-                  textAlign: TextAlign.center,
+                  l('Storico mensile'),
                   style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF7A8986),
+                    fontSize: 11,
                   ),
                 ),
-                if (!isCurrentMonth)
-                  Text(
-                    l('Storico mensile'),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
               ],
-            ),
+            ],
           ),
-          IconButton(
-            onPressed: onNext,
-            icon: const Icon(
-              Icons.chevron_right,
-            ),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        arrowButton(
+          icon: Icons.chevron_right_rounded,
+          onPressed: onNext,
+        ),
+      ],
     );
   }
 }
 
-class SummaryCard extends StatelessWidget {
+class OverviewCard extends StatelessWidget {
   final String title;
   final String value;
-  final String? subtitle;
-  final VoidCallback? onInfo;
   final IconData icon;
-  final Color iconColor;
+  final Color accentColor;
   final Color iconBackground;
+  final VoidCallback? onInfo;
 
-  const SummaryCard({
+  const OverviewCard({
     super.key,
     required this.title,
     required this.value,
-    this.subtitle,
-    this.onInfo,
     required this.icon,
-    required this.iconColor,
+    required this.accentColor,
     required this.iconBackground,
+    this.onInfo,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      height: 112,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFE9EAF0),
-        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE9EEEC)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0B000000),
+            blurRadius: 16,
+            offset: Offset(0, 7),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: iconBackground,
-              borderRadius: BorderRadius.circular(12),
+              shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
-              size: 19,
-              color: iconColor,
+              color: accentColor,
+              size: 23,
             ),
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurfaceVariant,
-                    fontSize: 13,
-                  ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF26363A),
+                          fontSize: 12.5,
+                          height: 1.12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (onInfo != null)
+                      InkWell(
+                        onTap: onInfo,
+                        child: const Padding(
+                          padding: EdgeInsets.all(2),
+                          child: Icon(
+                            Icons.info_outline_rounded,
+                            color: Color(0xFF8A9694),
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-              if (onInfo != null)
-                InkWell(
-                  onTap: onInfo,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: Icon(
-                      Icons.info_outline_rounded,
-                      size: 16,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
+                const SizedBox(height: 5),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: accentColor,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
                     ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w700,
+              ],
             ),
           ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -1326,7 +1284,6 @@ class SpendingAnalysisCard extends StatelessWidget {
   final int touchedIndex;
   final List<PieChartSectionData> pieSections;
   final Color Function(String category) categoryColor;
-  final IconData Function(String category) categoryIcon;
   final String Function(String category) categoryLabel;
   final String Function(double value) formatEuro;
   final ValueChanged<int> onTouched;
@@ -1338,7 +1295,6 @@ class SpendingAnalysisCard extends StatelessWidget {
     required this.touchedIndex,
     required this.pieSections,
     required this.categoryColor,
-    required this.categoryIcon,
     required this.categoryLabel,
     required this.formatEuro,
     required this.onTouched,
@@ -1346,225 +1302,221 @@ class SpendingAnalysisCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     String centerTitle = l('Totale destinato');
     String centerValue = formatEuro(totalAmount);
 
-    if (touchedIndex >= 0 &&
-        touchedIndex < entries.length) {
+    if (touchedIndex >= 0 && touchedIndex < entries.length) {
       centerTitle = categoryLabel(entries[touchedIndex].key);
-      centerValue =
-          formatEuro(entries[touchedIndex].value);
+      centerValue = formatEuro(entries[touchedIndex].value);
     }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFFE9EAF0),
-        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE9EEEC)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            height: 220,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                PieChart(
-                  PieChartData(
-                    sections: pieSections,
-                    centerSpaceRadius: 64,
-                    sectionsSpace: 3,
-                    borderData: FlBorderData(
-                      show: false,
-                    ),
-                    pieTouchData: PieTouchData(
-                      touchCallback: (
-                        FlTouchEvent event,
-                        PieTouchResponse? response,
-                      ) {
-                        if (!event.isInterestedForInteractions ||
-                            response == null ||
-                            response.touchedSection == null) {
-                          onTouched(-1);
-                          return;
-                        }
-
-                        onTouched(
-                          response
-                              .touchedSection!
-                              .touchedSectionIndex,
-                        );
-                      },
-                    ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l('Analisi spese'),
+                  style: const TextStyle(
+                    color: Color(0xFF14263A),
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                IgnorePointer(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        centerTitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        centerValue,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              l('Per categoria'),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: colors.onSurfaceVariant,
               ),
-            ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF889592),
+                size: 24,
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          for (int i = 0; i < entries.length; i++) ...[
-            CategorySpendingRow(
-              category: categoryLabel(entries[i].key),
-              amount: entries[i].value,
-              totalAmount: totalAmount,
-              color: categoryColor(entries[i].key),
-              icon: categoryIcon(entries[i].key),
-              formattedAmount:
-                  formatEuro(entries[i].value),
-              isSelected: i == touchedIndex,
-            ),
-            if (i != entries.length - 1)
-              const SizedBox(height: 14),
-          ],
+          const SizedBox(height: 15),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final chartSize = constraints.maxWidth < 340 ? 126.0 : 142.0;
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: chartSize,
+                    height: chartSize,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        PieChart(
+                          PieChartData(
+                            sections: pieSections,
+                            centerSpaceRadius: chartSize * 0.30,
+                            sectionsSpace: 2.2,
+                            borderData: FlBorderData(show: false),
+                            pieTouchData: PieTouchData(
+                              touchCallback: (event, response) {
+                                if (!event.isInterestedForInteractions ||
+                                    response?.touchedSection == null) {
+                                  onTouched(-1);
+                                  return;
+                                }
+
+                                onTouched(
+                                  response!.touchedSection!.touchedSectionIndex,
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        IgnorePointer(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  centerTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Color(0xFF73807E),
+                                    fontSize: 8.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    centerValue,
+                                    style: const TextStyle(
+                                      color: Color(0xFF1F3034),
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        for (int i = 0; i < entries.length; i++) ...[
+                          AnalysisLegendRow(
+                            label: categoryLabel(entries[i].key),
+                            amount: formatEuro(entries[i].value),
+                            percentage:
+                                totalAmount <= 0 ? 0 : entries[i].value / totalAmount,
+                            color: categoryColor(entries[i].key),
+                            selected: i == touchedIndex,
+                          ),
+                          if (i != entries.length - 1)
+                            const SizedBox(height: 9),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 }
 
-class CategorySpendingRow extends StatelessWidget {
-  final String category;
-  final double amount;
-  final double totalAmount;
+class AnalysisLegendRow extends StatelessWidget {
+  final String label;
+  final String amount;
+  final double percentage;
   final Color color;
-  final IconData icon;
-  final String formattedAmount;
-  final bool isSelected;
+  final bool selected;
 
-  const CategorySpendingRow({
+  const AnalysisLegendRow({
     super.key,
-    required this.category,
+    required this.label,
     required this.amount,
-    required this.totalAmount,
+    required this.percentage,
     required this.color,
-    required this.icon,
-    required this.formattedAmount,
-    required this.isSelected,
+    required this.selected,
   });
 
   @override
   Widget build(BuildContext context) {
-    final percentage =
-        totalAmount == 0
-            ? 0.0
-            : amount / totalAmount;
-
     return AnimatedContainer(
-      duration: const Duration(
-        milliseconds: 180,
-      ),
-      padding: EdgeInsets.all(
-        isSelected ? 10 : 0,
-      ),
+      duration: const Duration(milliseconds: 160),
+      padding: selected
+          ? const EdgeInsets.symmetric(horizontal: 7, vertical: 5)
+          : EdgeInsets.zero,
       decoration: BoxDecoration(
-        color: isSelected
-            ? color.withValues(alpha: 0.08)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
+        color: selected ? color.withValues(alpha: 0.08) : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 9,
+            height: 9,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(
-              icon,
-              size: 18,
               color: color,
+              shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 7),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        category,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      formattedAmount,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(100),
-                  child: LinearProgressIndicator(
-                    value: percentage,
-                    minHeight: 5,
-                    backgroundColor:
-                        const Color(0xFFEEF0F4),
-                    color: color,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  le(
-                    '${(percentage * 100).round()}% del totale',
-                    '${(percentage * 100).round()}% of total',
-                  ),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurfaceVariant,
-                  ),
-                ),
-              ],
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF344447),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '${(percentage * 100).round()}%',
+            style: const TextStyle(
+              color: Color(0xFF8A9694),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              amount,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Color(0xFF1F3034),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -1573,55 +1525,117 @@ class CategorySpendingRow extends StatelessWidget {
   }
 }
 
-class AnalysisEmptyState extends StatelessWidget {
-  const AnalysisEmptyState({
+class RecentTransactionsCard extends StatelessWidget {
+  final String title;
+  final List<FinanceTransaction> transactions;
+  final bool showAll;
+  final String Function(double value) formatEuro;
+  final String Function(DateTime date) formatDate;
+  final IconData Function(String category) categoryIcon;
+  final Color Function(String category) categoryColor;
+  final VoidCallback? onToggleAll;
+  final ValueChanged<FinanceTransaction> onTransactionTap;
+
+  const RecentTransactionsCard({
     super.key,
+    required this.title,
+    required this.transactions,
+    required this.showAll,
+    required this.formatEuro,
+    required this.formatDate,
+    required this.categoryIcon,
+    required this.categoryColor,
+    required this.onToggleAll,
+    required this.onTransactionTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFE9EAF0),
-        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE9EEEC)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x09000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: colors.primaryContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              Icons.donut_large_outlined,
-              color: colors.primary,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 17, 12, 9),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFF14263A),
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (onToggleAll != null)
+                  TextButton(
+                    onPressed: onToggleAll,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF0B8D86),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          showAll
+                              ? le('Mostra meno', 'Show less')
+                              : le('Vedi tutti', 'See all'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(
+                          showAll
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.chevron_right_rounded,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
-          Text(
-            l('Niente da mostrare'),
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            l('Quando aggiungi spese o scegli dei soldi da mettere da parte, vedrai qui come sono distribuiti.'),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.onSurfaceVariant,
-            ),
-          ),
+          if (transactions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 18),
+              child: EmptyTransactions(compact: true),
+            )
+          else
+            for (int i = 0; i < transactions.length; i++) ...[
+              TransactionItem(
+                transaction: transactions[i],
+                formattedAmount: formatEuro(transactions[i].amount),
+                formattedDate: formatDate(transactions[i].date),
+                categoryIcon: categoryIcon(transactions[i].category),
+                categoryColor: categoryColor(transactions[i].category),
+                onTap: () => onTransactionTap(transactions[i]),
+              ),
+              if (i != transactions.length - 1)
+                const Divider(
+                  height: 1,
+                  indent: 72,
+                  endIndent: 16,
+                  color: Color(0xFFEDF0EF),
+                ),
+            ],
+          if (transactions.isNotEmpty) const SizedBox(height: 8),
         ],
       ),
     );
@@ -1649,35 +1663,29 @@ class TransactionItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIncome = transaction.isIncome;
-
     final amountColor = isIncome
-        ? const Color(0xFF16865C)
-        : const Color(0xFFC34949);
+        ? const Color(0xFF119B6B)
+        : const Color(0xFF1F2D31);
 
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         child: Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 43,
+              height: 43,
               decoration: BoxDecoration(
                 color: isIncome
-                    ? const Color(0xFFE5F6EF)
-                    : categoryColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(13),
+                    ? const Color(0xFF24BA70)
+                    : categoryColor,
+                shape: BoxShape.circle,
               ),
               child: Icon(
-                isIncome ? Icons.payments_outlined : categoryIcon,
-                size: 20,
-                color: isIncome
-                    ? const Color(0xFF16865C)
-                    : categoryColor,
+                isIncome ? Icons.work_outline_rounded : categoryIcon,
+                size: 21,
+                color: Colors.white,
               ),
             ),
             const SizedBox(width: 12),
@@ -1692,28 +1700,34 @@ class TransactionItem extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF17282D),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     '${localizedCategory(transaction.category)} · $formattedDate',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF7E8B89),
+                      fontSize: 11.5,
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              '${isIncome ? '+' : '-'} $formattedAmount',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: amountColor,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '${isIncome ? '+' : '-'} $formattedAmount',
+                style: TextStyle(
+                  color: amountColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
@@ -1723,50 +1737,46 @@ class TransactionItem extends StatelessWidget {
   }
 }
 
-class EmptyTransactions extends StatelessWidget {
-  const EmptyTransactions({
-    super.key,
-  });
+class AnalysisEmptyState extends StatelessWidget {
+  const AnalysisEmptyState({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 32,
-      ),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFE9EAF0),
-        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE9EEEC)),
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.receipt_long_outlined,
-            size: 40,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurfaceVariant,
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: Color(0xFFE0F4F1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.donut_large_outlined,
+              color: Color(0xFF0B8D86),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 13),
           Text(
-            l('Nessun movimento'),
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
+            l('Niente da mostrare'),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 5),
           Text(
-            l('Nessun movimento registrato per questo mese.'),
+            l('Quando aggiungi spese o scegli dei soldi da mettere da parte, vedrai qui come sono distribuiti.'),
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurfaceVariant,
+            style: const TextStyle(
+              color: Color(0xFF7E8B89),
               fontSize: 13,
             ),
           ),
@@ -1774,4 +1784,121 @@ class EmptyTransactions extends StatelessWidget {
       ),
     );
   }
+}
+
+class EmptyTransactions extends StatelessWidget {
+  final bool compact;
+
+  const EmptyTransactions({
+    super.key,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: 24,
+        vertical: compact ? 22 : 32,
+      ),
+      decoration: compact
+          ? null
+          : BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFE9EEEC)),
+            ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.receipt_long_outlined,
+            size: 36,
+            color: Color(0xFF899694),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            l('Nessun movimento'),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l('Nessun movimento registrato per questo mese.'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF7E8B89),
+              fontSize: 12.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroWavesPainter extends CustomPainter {
+  const _HeroWavesPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final darkWave = Paint()
+      ..color = const Color(0x2200524E)
+      ..style = PaintingStyle.fill;
+
+    final lightWave = Paint()
+      ..color = const Color(0x18FFFFFF)
+      ..style = PaintingStyle.fill;
+
+    final path1 = Path()
+      ..moveTo(0, size.height * 0.72)
+      ..cubicTo(
+        size.width * 0.28,
+        size.height * 0.48,
+        size.width * 0.48,
+        size.height * 0.92,
+        size.width * 0.70,
+        size.height * 0.73,
+      )
+      ..cubicTo(
+        size.width * 0.84,
+        size.height * 0.60,
+        size.width * 0.94,
+        size.height * 0.55,
+        size.width,
+        size.height * 0.56,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final path2 = Path()
+      ..moveTo(0, size.height * 0.58)
+      ..cubicTo(
+        size.width * 0.30,
+        size.height * 0.74,
+        size.width * 0.50,
+        size.height * 0.47,
+        size.width * 0.76,
+        size.height * 0.67,
+      )
+      ..cubicTo(
+        size.width * 0.87,
+        size.height * 0.76,
+        size.width * 0.94,
+        size.height * 0.79,
+        size.width,
+        size.height * 0.76,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    canvas.drawPath(path1, darkWave);
+    canvas.drawPath(path2, lightWave);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
