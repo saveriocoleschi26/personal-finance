@@ -467,7 +467,7 @@ class _PlanningPageState extends State<PlanningPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                l('P.F. divide ogni spesa tra i mesi prima della scadenza, così sai quanto mettere da parte ogni mese.'),
+                l('Liblo divide ogni spesa tra i mesi prima della scadenza, così sai quanto mettere da parte ogni mese.'),
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.35,

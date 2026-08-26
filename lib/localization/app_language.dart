@@ -147,16 +147,16 @@ const Map<String, String> _english = {
   'Crea, modifica e disattiva le categorie di spesa':
       'Create, edit, and disable expense categories',
   'Lingua': 'Language',
-  'Scegli la lingua usata da P.F.': 'Choose the language used by P.F.',
+  'Scegli la lingua usata da Liblo': 'Choose the language used by Liblo',
   'Lingua dell’app': 'App language',
   'Automatico': 'Automatic',
   'Usa la lingua del telefono': 'Use your phone language',
   'Italiano': 'Italian',
   'Inglese': 'English',
   'Sicurezza': 'Security',
-  'Proteggi P.F.': 'Protect P.F.',
+  'Proteggi Liblo': 'Protect Liblo',
   'Aiuto': 'Help',
-  'Come funziona P.F.': 'How P.F. works',
+  'Come funziona Liblo': 'How Liblo works',
   'Rivedi la guida rapida alle funzioni principali':
       'Review the quick guide to the main features',
   'Home': 'Home',
@@ -168,8 +168,8 @@ const Map<String, String> _english = {
   'Il Disponibile considera ciò che hai già speso, le spese da pagare e i soldi che vuoi mettere da parte.':
       'Available money includes what you have already spent, upcoming expenses, and the money you want to set aside.',
   'Pianifica in anticipo': 'Plan ahead',
-  'Inserisci spese previste, ricorrenti e scadenze a lungo termine. P.F. calcola quanto mettere da parte ogni mese prima delle scadenze.':
-      'Add planned, recurring, and long-term expenses. P.F. works out how much to set aside each month before they are due.',
+  'Inserisci spese previste, ricorrenti e scadenze a lungo termine. Liblo calcola quanto mettere da parte ogni mese prima delle scadenze.':
+      'Add planned, recurring, and long-term expenses. Liblo works out how much to set aside each month before they are due.',
   'Registra i movimenti in un tap': 'Add transactions in one tap',
   'Usa il pulsante “+ Movimento” sempre visibile nella Home per aggiungere rapidamente un’entrata o una spesa.':
       'Use the “+ Transaction” button on Home to quickly add income or an expense.',
@@ -237,8 +237,8 @@ const Map<String, String> _english = {
   'Entrate': 'Income',
   'Uscite': 'Outgoings',
   'Soldi già destinati': 'Money already set aside',
-  'Comprendono i soldi già spesi, quelli che serviranno per le spese future e quelli che hai scelto di mettere da parte. In questo modo P.F. non considera disponibili soldi che ti serviranno più avanti.':
-      'This includes money already spent, money needed for upcoming expenses, and money you chose to set aside. P.F. does not count money you will need later as available.',
+  'Comprendono i soldi già spesi, quelli che serviranno per le spese future e quelli che hai scelto di mettere da parte. In questo modo Liblo non considera disponibili soldi che ti serviranno più avanti.':
+      'This includes money already spent, money needed for upcoming expenses, and money you chose to set aside. Liblo does not count money you will need later as available.',
   'Percentuale spese/entrate': 'Expenses / income',
   'Nessuna entrata registrata': 'No income recorded',
   'Analisi spese': 'Spending breakdown',
@@ -266,8 +266,8 @@ const Map<String, String> _english = {
   'Spese ricorrenti': 'Recurring expenses',
   'Soldi che vuoi mettere da parte': 'Money you want to set aside',
   'Scadenze a lungo termine': 'Long-term expenses',
-  'P.F. divide ogni spesa tra i mesi prima della scadenza, così sai quanto mettere da parte ogni mese.':
-      'P.F. spreads each expense across the months before it is due, so you know how much to set aside each month.',
+  'Liblo divide ogni spesa tra i mesi prima della scadenza, così sai quanto mettere da parte ogni mese.':
+      'Liblo spreads each expense across the months before it is due, so you know how much to set aside each month.',
   'questo mese': 'this month',
   'Prossime scadenze': 'Upcoming due dates',
   'Nessuna scadenza pianificata.': 'No upcoming due dates.',

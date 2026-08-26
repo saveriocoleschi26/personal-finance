@@ -21,7 +21,7 @@ class PersonalFinanceApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Personal Finance',
+      title: 'Liblo',
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(

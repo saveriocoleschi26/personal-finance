@@ -32,7 +32,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           icon: Icons.event_note_outlined,
           title: l('Pianifica in anticipo'),
           description: l(
-            'Inserisci spese previste, ricorrenti e scadenze a lungo termine. P.F. calcola quanto mettere da parte ogni mese prima delle scadenze.',
+            'Inserisci spese previste, ricorrenti e scadenze a lungo termine. Liblo calcola quanto mettere da parte ogni mese prima delle scadenze.',
           ),
         ),
         _OnboardingStep(

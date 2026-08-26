@@ -96,21 +96,21 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (Platform.isIOS) {
       return le(
-        'Richiedi ${_security.biometricName} quando apri P.F.',
-        'Require ${_security.biometricName} when opening P.F.',
+        'Richiedi ${_security.biometricName} quando apri Liblo',
+        'Require ${_security.biometricName} when opening Liblo',
       );
     }
 
     if (Platform.isAndroid) {
       return le(
-        'Richiedi l’impronta digitale quando apri P.F.',
-        'Require fingerprint when opening P.F.',
+        'Richiedi l’impronta digitale quando apri Liblo',
+        'Require fingerprint when opening Liblo',
       );
     }
 
     return le(
-      'Richiedi lo sblocco biometrico quando apri P.F.',
-      'Require biometric unlock when opening P.F.',
+      'Richiedi lo sblocco biometrico quando apri Liblo',
+      'Require biometric unlock when opening Liblo',
     );
   }
 
@@ -244,7 +244,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 background: colors.primaryContainer,
               ),
               title: Text(
-                l('Proteggi P.F.'),
+                l('Proteggi Liblo'),
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                 ),
@@ -262,8 +262,8 @@ class _SettingsPageState extends State<SettingsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               le(
-                'Quando la protezione è attiva, P.F. si blocca all’avvio e dopo essere rimasta in background per qualche secondo.',
-                'When protection is on, P.F. locks at startup and after being in the background for a short time.',
+                'Quando la protezione è attiva, Liblo si blocca all’avvio e dopo essere rimasta in background per qualche secondo.',
+                'When protection is on, Liblo locks at startup and after being in the background for a short time.',
               ),
               style: TextStyle(
                 fontSize: 12,
@@ -289,7 +289,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 background: colors.primaryContainer,
               ),
               title: Text(
-                l('Come funziona P.F.'),
+                l('Come funziona Liblo'),
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                 ),
@@ -362,7 +362,7 @@ class _LanguageSettingsPageState extends State<LanguageSettingsPage> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         children: [
           Text(
-            l('Scegli la lingua usata da P.F.'),
+            l('Scegli la lingua usata da Liblo'),
             style: TextStyle(
               fontSize: 13,
               color: colors.onSurfaceVariant,

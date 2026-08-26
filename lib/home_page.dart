@@ -963,7 +963,7 @@ class _HomePageState extends State<HomePage> {
         toolbarHeight: 68,
         titleSpacing: 20,
         title: const Text(
-          'Personal finance',
+          'Liblo',
           style: TextStyle(
             color: teal,
             fontSize: 24,

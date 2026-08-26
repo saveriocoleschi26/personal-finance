@@ -101,8 +101,8 @@ class BiometricSecurityController extends ChangeNotifier {
     // lasciamo al sistema la possibilità di usare il codice del dispositivo.
     return authenticate(
       reason: le(
-        'Sblocca P.F. per vedere i tuoi dati',
-        'Unlock P.F. to view your data',
+        'Sblocca Liblo per vedere i tuoi dati',
+        'Unlock Liblo to view your data',
       ),
     );
   }
@@ -119,12 +119,12 @@ class BiometricSecurityController extends ChangeNotifier {
     final confirmed = await authenticate(
       reason: value
           ? le(
-              'Conferma la tua identità per proteggere P.F.',
-              'Confirm your identity to protect P.F.',
+              'Conferma la tua identità per proteggere Liblo',
+              'Confirm your identity to protect Liblo',
             )
           : le(
-              'Conferma la tua identità per togliere la protezione di P.F.',
-              'Confirm your identity to turn off P.F. protection.',
+              'Conferma la tua identità per togliere la protezione di Liblo',
+              'Confirm your identity to turn off Liblo protection.',
             ),
     );
 
