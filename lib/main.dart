@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_shell.dart';
+import 'currency/app_currency.dart';
 import 'localization/app_language.dart';
 import 'security/biometric_gate.dart';
 import 'security/biometric_security.dart';
@@ -8,6 +9,7 @@ import 'security/biometric_security.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppLanguageController.instance.load();
+  await AppCurrencyController.instance.load();
   await BiometricSecurityController.instance.load();
   runApp(const PersonalFinanceApp());
 }

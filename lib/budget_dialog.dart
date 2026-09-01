@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'currency/app_currency.dart';
 import 'localization/app_language.dart';
 
 class BudgetResult {
@@ -68,7 +69,7 @@ class _BudgetDialogState extends State<BudgetDialog> {
           ),
           decoration: InputDecoration(
             labelText: l('Quanto vuoi proteggere questo mese?'),
-            prefixText: '€ ',
+            prefixText: AppCurrencyController.instance.inputPrefix,
           ),
           onChanged: (value) {
             savingsGoalText = value;

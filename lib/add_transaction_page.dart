@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'categories/category_selector.dart';
+import 'currency/app_currency.dart';
 import 'localization/app_language.dart';
 import 'transaction/final_transaction.dart';
 
@@ -42,7 +43,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       text: transaction?.description ?? '',
     );
 
-    selectedCategory = transaction?.category ?? 'Spesa';
+    selectedCategory = transaction?.category ?? 'Spesa alimentare';
     isIncome = transaction?.isIncome ?? false;
     selectedDate = transaction?.date ?? DateTime.now();
   }
@@ -158,6 +159,38 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Text(
+              l('Tipo di movimento'),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment<bool>(
+                  value: false,
+                  icon: const Icon(Icons.trending_down_rounded),
+                  label: Text(l('Uscita')),
+                ),
+                ButtonSegment<bool>(
+                  value: true,
+                  icon: const Icon(Icons.trending_up_rounded),
+                  label: Text(l('Entrata')),
+                ),
+              ],
+              selected: {isIncome},
+              showSelectedIcon: false,
+              expandedInsets: EdgeInsets.zero,
+              onSelectionChanged: (selection) {
+                setState(() {
+                  isIncome = selection.first;
+                });
+              },
+            ),
+            const SizedBox(height: 24),
             TextField(
               controller: amountController,
               keyboardType: const TextInputType.numberWithOptions(
@@ -166,7 +199,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               decoration: InputDecoration(
                 labelText: l('Importo'),
                 hintText: l('Es. 25,50'),
-                prefixText: '€ ',
+                prefixText: AppCurrencyController.instance.inputPrefix,
               ),
             ),
             const SizedBox(height: 20),
@@ -225,18 +258,6 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 fontSize: 12,
                 color: colors.onSurfaceVariant,
               ),
-            ),
-            const SizedBox(height: 18),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l('Tipo di movimento')),
-              subtitle: Text(isIncome ? l('Entrata') : l('Spesa')),
-              value: isIncome,
-              onChanged: (value) {
-                setState(() {
-                  isIncome = value;
-                });
-              },
             ),
             const SizedBox(height: 30),
             FilledButton.icon(

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../categories/categories_page.dart';
+import '../currency/app_currency.dart';
 import '../localization/app_language.dart';
 import '../onboarding/onboarding_page.dart';
 import '../security/biometric_security.dart';
@@ -18,6 +19,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _changingSecurity = false;
 
   AppLanguageController get _language => AppLanguageController.instance;
+  AppCurrencyController get _currency => AppCurrencyController.instance;
   BiometricSecurityController get _security =>
       BiometricSecurityController.instance;
 
@@ -25,6 +27,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _language.addListener(_refresh);
+    _currency.addListener(_refresh);
     _security.addListener(_refresh);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -35,6 +38,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void dispose() {
     _language.removeListener(_refresh);
+    _currency.removeListener(_refresh);
     _security.removeListener(_refresh);
     super.dispose();
   }
@@ -56,6 +60,12 @@ class _SettingsPageState extends State<SettingsPage> {
             : l('Inglese');
         return '${l('Automatico')} · $detected';
     }
+  }
+
+  String _currencySubtitle() {
+    return _currency.currencyCode == AppCurrencyController.usDollar
+        ? l(r'Dollaro statunitense ($)')
+        : l('Euro (€)');
   }
 
   IconData get _securityIcon {
@@ -223,6 +233,31 @@ class _SettingsPageState extends State<SettingsPage> {
                     );
                   },
                 ),
+                const Divider(height: 1, indent: 70),
+                ListTile(
+                  leading: _SettingsIcon(
+                    icon: Icons.payments_outlined,
+                    color: colors.primary,
+                    background: colors.primaryContainer,
+                  ),
+                  title: Text(
+                    l('Valuta'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(_currencySubtitle()),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const CurrencySettingsPage(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -295,7 +330,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               subtitle: Text(
-                l('Rivedi la guida rapida alle funzioni principali'),
+                l('Rivedi la guida completa alle funzioni principali'),
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
@@ -388,6 +423,91 @@ class _LanguageSettingsPageState extends State<LanguageSettingsPage> {
                   title: 'English',
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CurrencySettingsPage extends StatefulWidget {
+  const CurrencySettingsPage({super.key});
+
+  @override
+  State<CurrencySettingsPage> createState() =>
+      _CurrencySettingsPageState();
+}
+
+class _CurrencySettingsPageState
+    extends State<CurrencySettingsPage> {
+  Future<void> _changeCurrency(String value) async {
+    await AppCurrencyController.instance.setCurrencyCode(value);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = AppCurrencyController.instance;
+    final colors = Theme.of(context).colorScheme;
+
+    Widget currencyOption({
+      required String value,
+      required String title,
+    }) {
+      final selected = controller.currencyCode == value;
+
+      return ListTile(
+        onTap: () => _changeCurrency(value),
+        leading: Icon(
+          selected
+              ? Icons.radio_button_checked
+              : Icons.radio_button_unchecked,
+          color: selected ? colors.primary : colors.onSurfaceVariant,
+        ),
+        title: Text(title),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l('Valuta dell’app')),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        children: [
+          Text(
+            l('Scegli la valuta mostrata da Liblo'),
+            style: TextStyle(
+              fontSize: 13,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
+            child: Column(
+              children: [
+                currencyOption(
+                  value: AppCurrencyController.euro,
+                  title: l('Euro (€)'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                currencyOption(
+                  value: AppCurrencyController.usDollar,
+                  title: l(r'Dollaro statunitense ($)'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              l('La scelta cambia soltanto il simbolo mostrato. Gli importi non vengono convertiti.'),
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.onSurfaceVariant,
+              ),
             ),
           ),
         ],

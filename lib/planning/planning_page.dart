@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../annual_expenses/annual_expense.dart';
 import '../annual_expenses/annual_expenses_page.dart';
 import '../budget_dialog.dart';
+import '../currency/app_currency.dart';
 import '../database/database_service.dart';
 import '../localization/app_language.dart';
 import '../planned_expenses/planned_expense.dart';
@@ -56,11 +57,8 @@ class _PlanningPageState extends State<PlanningPage> {
     loadData();
   }
 
-  String formatEuro(double value) {
-    final fixed = value.toStringAsFixed(2);
-    return AppLanguageController.instance.isEnglish
-        ? '€ $fixed'
-        : '€ ${fixed.replaceAll('.', ',')}';
+  String formatMoney(double value) {
+    return AppCurrencyController.instance.format(value);
   }
 
   String get selectedMonthLabel {
@@ -380,7 +378,7 @@ class _PlanningPageState extends State<PlanningPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      formatEuro(totalProtected),
+                      formatMoney(totalProtected),
                       style: TextStyle(
                         color: colors.onPrimary,
                         fontSize: 36,
@@ -390,8 +388,8 @@ class _PlanningPageState extends State<PlanningPage> {
                     const SizedBox(height: 6),
                     Text(
                       le(
-                        '${formatEuro(plannedExpenses)} per spese · ${formatEuro(savingsGoal)} da mettere da parte',
-                        '${formatEuro(plannedExpenses)} for expenses · ${formatEuro(savingsGoal)} set aside',
+                        '${formatMoney(plannedExpenses)} per spese · ${formatMoney(savingsGoal)} da mettere da parte',
+                        '${formatMoney(plannedExpenses)} for expenses · ${formatMoney(savingsGoal)} set aside',
                       ),
                       style: TextStyle(
                         color: colors.onPrimary.withValues(alpha: 0.80),
@@ -426,7 +424,7 @@ class _PlanningPageState extends State<PlanningPage> {
                           '${monthlyExpenses.where((expense) => !expense.isPaid).length} ancora da pagare',
                           '${monthlyExpenses.where((expense) => !expense.isPaid).length} still to pay',
                         ),
-                      value: formatEuro(monthlyCommitment),
+                      value: formatMoney(monthlyCommitment),
                       onTap: openMonthlyExpenses,
                     ),
                     const Divider(
@@ -440,7 +438,7 @@ class _PlanningPageState extends State<PlanningPage> {
                         '$selectedMonthRecurringCount nel mese · incluse nelle spese previste',
                         '$selectedMonthRecurringCount this month · included in planned expenses',
                       ),
-                      value: formatEuro(recurringCommitmentForSelectedMonth),
+                      value: formatMoney(recurringCommitmentForSelectedMonth),
                       onTap: openRecurringExpenses,
                     ),
                     const Divider(
@@ -451,7 +449,7 @@ class _PlanningPageState extends State<PlanningPage> {
                       icon: Icons.savings_outlined,
                       title: l('Obiettivo di risparmio'),
                       subtitle: l('Soldi che vuoi mettere da parte'),
-                      value: formatEuro(savingsGoal),
+                      value: formatMoney(savingsGoal),
                       onTap: editSavingsGoal,
                     ),
                   ],
@@ -530,7 +528,7 @@ class _PlanningPageState extends State<PlanningPage> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            formatEuro(annualCommitment),
+                            formatMoney(annualCommitment),
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color: colors.primary,
@@ -596,7 +594,7 @@ class _PlanningPageState extends State<PlanningPage> {
                       for (int i = 0; i < upcomingDeadlines.length; i++) ...[
                         _PlanningDeadlineRow(
                           deadline: upcomingDeadlines[i],
-                          formatEuro: formatEuro,
+                          formatMoney: formatMoney,
                           monthNames: monthNames,
                         ),
                         if (i != upcomingDeadlines.length - 1)
@@ -707,12 +705,12 @@ class _PlanningDeadline {
 
 class _PlanningDeadlineRow extends StatelessWidget {
   final _PlanningDeadline deadline;
-  final String Function(double) formatEuro;
+  final String Function(double) formatMoney;
   final List<String> monthNames;
 
   const _PlanningDeadlineRow({
     required this.deadline,
-    required this.formatEuro,
+    required this.formatMoney,
     required this.monthNames,
   });
 
@@ -765,7 +763,7 @@ class _PlanningDeadlineRow extends StatelessWidget {
             ),
           ),
           Text(
-            formatEuro(deadline.amount),
+            formatMoney(deadline.amount),
             style: const TextStyle(
               fontWeight: FontWeight.w700,
             ),

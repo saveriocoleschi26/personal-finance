@@ -83,17 +83,17 @@ class CategoryIconOption {
 const List<CategoryIconOption> categoryIconOptions = [
   CategoryIconOption(
     key: 'shopping_cart',
-    label: 'Spesa',
+    label: 'Spesa alimentare',
     icon: Icons.shopping_cart_outlined,
   ),
   CategoryIconOption(
     key: 'home',
-    label: 'Casa',
+    label: 'Casa e bollette',
     icon: Icons.home_outlined,
   ),
   CategoryIconOption(
     key: 'car',
-    label: 'Auto',
+    label: 'Auto e trasporti',
     icon: Icons.directions_car_outlined,
   ),
   CategoryIconOption(
@@ -103,12 +103,12 @@ const List<CategoryIconOption> categoryIconOptions = [
   ),
   CategoryIconOption(
     key: 'restaurant',
-    label: 'Ristorante',
+    label: 'Ristoranti e bar',
     icon: Icons.restaurant_outlined,
   ),
   CategoryIconOption(
     key: 'school',
-    label: 'Studio',
+    label: 'Studio e formazione',
     icon: Icons.school_outlined,
   ),
   CategoryIconOption(
@@ -123,7 +123,7 @@ const List<CategoryIconOption> categoryIconOptions = [
   ),
   CategoryIconOption(
     key: 'health',
-    label: 'Salute',
+    label: 'Salute e benessere',
     icon: Icons.medical_services_outlined,
   ),
   CategoryIconOption(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../categories/category_selector.dart';
+import '../currency/app_currency.dart';
 import '../database/database_service.dart';
 import '../localization/app_language.dart';
 import 'recurring_expense.dart';
@@ -52,11 +53,8 @@ class _RecurringExpensesPageState
     });
   }
 
-  String formatEuro(double value) {
-    final fixed = value.toStringAsFixed(2);
-    return AppLanguageController.instance.isEnglish
-        ? '€ $fixed'
-        : '€ ${fixed.replaceAll('.', ',')}';
+  String formatMoney(double value) {
+    return AppCurrencyController.instance.format(value);
   }
 
   String formatMonth(DateTime date) {
@@ -319,7 +317,7 @@ class _RecurringExpensesPageState
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          formatEuro(selectedMonthTotal),
+                          formatMoney(selectedMonthTotal),
                           style: TextStyle(
                             color: colors.onPrimary,
                             fontSize: 36,
@@ -411,7 +409,7 @@ class _RecurringExpensesPageState
                               },
                               child: RecurringExpenseRow(
                                 expense: expenses[i],
-                                formatEuro: formatEuro,
+                                formatMoney: formatMoney,
                                 formatMonth: formatMonth,
                               ),
                             ),
@@ -433,13 +431,13 @@ class _RecurringExpensesPageState
 
 class RecurringExpenseRow extends StatelessWidget {
   final RecurringExpense expense;
-  final String Function(double) formatEuro;
+  final String Function(double) formatMoney;
   final String Function(DateTime) formatMonth;
 
   const RecurringExpenseRow({
     super.key,
     required this.expense,
-    required this.formatEuro,
+    required this.formatMoney,
     required this.formatMonth,
   });
 
@@ -498,7 +496,7 @@ class RecurringExpenseRow extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        formatEuro(expense.amount),
+                        formatMoney(expense.amount),
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
                         ),
@@ -718,7 +716,7 @@ class _RecurringExpenseDialogState
                 ),
                 decoration: InputDecoration(
                   labelText: l('Importo mensile'),
-                  prefixText: '€ ',
+                  prefixText: AppCurrencyController.instance.inputPrefix,
                   hintText: l('Es. 12,99'),
                 ),
                 onChanged: (value) {

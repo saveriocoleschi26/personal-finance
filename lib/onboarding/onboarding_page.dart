@@ -23,23 +23,51 @@ class _OnboardingPageState extends State<OnboardingPage> {
   List<_OnboardingStep> get steps => [
         _OnboardingStep(
           icon: Icons.account_balance_wallet_outlined,
-          title: l('Tieni sotto controllo il mese'),
+          title: l('Benvenuto in Liblo'),
           description: l(
-            'Il Disponibile considera ciò che hai già speso, le spese da pagare e i soldi che vuoi mettere da parte.',
-          ),
-        ),
-        _OnboardingStep(
-          icon: Icons.event_note_outlined,
-          title: l('Pianifica in anticipo'),
-          description: l(
-            'Inserisci spese previste, ricorrenti e scadenze a lungo termine. Liblo calcola quanto mettere da parte ogni mese prima delle scadenze.',
+            'Liblo ti mostra quanto puoi davvero spendere. Il Disponibile tiene conto delle entrate, delle spese e dei soldi che hai già destinato al futuro.',
           ),
         ),
         _OnboardingStep(
           icon: Icons.add_circle_outline,
-          title: l('Registra i movimenti in un tap'),
+          title: l('Registra entrate e spese'),
           description: l(
-            'Usa il pulsante “+ Movimento” sempre visibile nella Home per aggiungere rapidamente un’entrata o una spesa.',
+            'Tocca il pulsante “+” nella Home per aggiungere un movimento. Puoi scegliere la categoria, cambiare la data e modificare o eliminare i movimenti in seguito.',
+          ),
+        ),
+        _OnboardingStep(
+          icon: Icons.event_note_outlined,
+          title: l('Organizza il mese'),
+          description: l(
+            'In Pianifica puoi inserire le spese previste, creare spese ricorrenti e scegliere quanti soldi mettere da parte come obiettivo di risparmio.',
+          ),
+        ),
+        _OnboardingStep(
+          icon: Icons.calendar_month_outlined,
+          title: l('Preparati alle scadenze'),
+          description: l(
+            'Aggiungi una scadenza a lungo termine, come bollo o assicurazione. Liblo divide l’importo tra i mesi precedenti e ti indica quanto mettere da parte.',
+          ),
+        ),
+        _OnboardingStep(
+          icon: Icons.sync_alt_rounded,
+          title: l('Il saldo continua nel mese nuovo'),
+          description: l(
+            'Quando inizia un nuovo mese, il Disponibile positivo o negativo del mese precedente viene riportato automaticamente. Non serve creare un movimento.',
+          ),
+        ),
+        _OnboardingStep(
+          icon: Icons.pie_chart_outline_rounded,
+          title: l('Controlla dove vanno i soldi'),
+          description: l(
+            'Dalla Home puoi cambiare mese, vedere il riepilogo, l’analisi per categoria e lo storico dei movimenti.',
+          ),
+        ),
+        _OnboardingStep(
+          icon: Icons.tune_rounded,
+          title: l('Personalizza Liblo'),
+          description: l(
+            'Nelle Impostazioni puoi gestire categorie, lingua, valuta e protezione biometrica. La scelta tra euro e dollari cambia il simbolo, non converte gli importi.',
           ),
         ),
       ];
@@ -153,6 +181,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
               child: Column(
                 children: [
+                  Text(
+                    '${currentPage + 1} / ${steps.length}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(

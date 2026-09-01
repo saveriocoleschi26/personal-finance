@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../annual_expenses/annual_expense.dart';
 import '../categories/expense_category.dart';
+import '../monthly_carryover/monthly_balance_calculator.dart';
 import '../planned_expenses/planned_expense.dart';
 import '../recurring_expenses/recurring_expense.dart';
 import '../transaction/final_transaction.dart';
@@ -27,7 +28,7 @@ class DatabaseService {
 
     return openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: _createDatabase,
       onUpgrade: _upgradeDatabase,
     );
@@ -43,6 +44,11 @@ class DatabaseService {
     await _createCategoriesTableV8(db);
     await _seedDefaultCategoriesV8(db);
     await _createAppSettingsTableV9(db);
+    await _createMonthlyCarryoversTableV10(db);
+    await _seedCarryoverStartMonthV10(
+      db,
+      includePreviousMonth: false,
+    );
   }
 
   Future<void> _upgradeDatabase(
@@ -84,6 +90,14 @@ class DatabaseService {
 
     if (oldVersion < 9) {
       await _createAppSettingsTableV9(db);
+    }
+
+    if (oldVersion < 10) {
+      await _createMonthlyCarryoversTableV10(db);
+      await _seedCarryoverStartMonthV10(
+        db,
+        includePreviousMonth: true,
+      );
     }
   }
 
@@ -250,6 +264,39 @@ class DatabaseService {
     );
   }
 
+  Future<void> _createMonthlyCarryoversTableV10(Database db) async {
+    await db.execute(
+      '''
+      CREATE TABLE IF NOT EXISTS monthly_carryovers (
+        month_key TEXT PRIMARY KEY,
+        amount_cents INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )
+      ''',
+    );
+  }
+
+  Future<void> _seedCarryoverStartMonthV10(
+    Database db, {
+    required bool includePreviousMonth,
+  }) async {
+    final now = DateTime.now();
+    final startMonth = DateTime(
+      now.year,
+      now.month - (includePreviousMonth ? 1 : 0),
+      1,
+    );
+
+    await db.insert(
+      'app_settings',
+      {
+        'setting_key': 'monthly_carryover_start_month',
+        'setting_value': _monthKey(startMonth),
+      },
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
   Future<void> _seedDefaultCategoriesV8(Database db) async {
     final countResult = await db.rawQuery(
       'SELECT COUNT(*) AS total FROM categories',
@@ -261,7 +308,7 @@ class DatabaseService {
 
     final defaults = <Map<String, dynamic>>[
       {
-        'name': 'Spesa',
+        'name': 'Spesa alimentare',
         'icon_key': 'shopping_cart',
         'color_value': 0xFF5470D8,
         'is_active': 1,
@@ -269,7 +316,7 @@ class DatabaseService {
         'is_protected': 0,
       },
       {
-        'name': 'Casa',
+        'name': 'Casa e bollette',
         'icon_key': 'home',
         'color_value': 0xFF6E9C76,
         'is_active': 1,
@@ -277,7 +324,7 @@ class DatabaseService {
         'is_protected': 0,
       },
       {
-        'name': 'Trasporti',
+        'name': 'Auto e trasporti',
         'icon_key': 'car',
         'color_value': 0xFFD78A55,
         'is_active': 1,
@@ -285,27 +332,59 @@ class DatabaseService {
         'is_protected': 0,
       },
       {
-        'name': 'Svago',
-        'icon_key': 'movie',
-        'color_value': 0xFF9B72CF,
+        'name': 'Ristoranti e bar',
+        'icon_key': 'restaurant',
+        'color_value': 0xFFD86666,
         'is_active': 1,
         'sort_order': 3,
         'is_protected': 0,
       },
       {
-        'name': 'Ristorante',
-        'icon_key': 'restaurant',
-        'color_value': 0xFFD86666,
+        'name': 'Shopping',
+        'icon_key': 'shopping_bag',
+        'color_value': 0xFFB05D8A,
         'is_active': 1,
         'sort_order': 4,
         'is_protected': 0,
       },
       {
-        'name': 'Studio',
+        'name': 'Salute e benessere',
+        'icon_key': 'health',
+        'color_value': 0xFF7B8E57,
+        'is_active': 1,
+        'sort_order': 5,
+        'is_protected': 0,
+      },
+      {
+        'name': 'Svago',
+        'icon_key': 'movie',
+        'color_value': 0xFF9B72CF,
+        'is_active': 1,
+        'sort_order': 6,
+        'is_protected': 0,
+      },
+      {
+        'name': 'Abbonamenti',
+        'icon_key': 'subscriptions',
+        'color_value': 0xFF5E78A8,
+        'is_active': 1,
+        'sort_order': 7,
+        'is_protected': 0,
+      },
+      {
+        'name': 'Viaggi',
+        'icon_key': 'flight',
+        'color_value': 0xFF4F8FA8,
+        'is_active': 1,
+        'sort_order': 8,
+        'is_protected': 0,
+      },
+      {
+        'name': 'Studio e formazione',
         'icon_key': 'school',
         'color_value': 0xFF58A6A6,
         'is_active': 1,
-        'sort_order': 5,
+        'sort_order': 9,
         'is_protected': 0,
       },
       {
@@ -444,6 +523,22 @@ class DatabaseService {
     return '${date.year}-$month';
   }
 
+  DateTime? _monthFromKey(String? value) {
+    if (value == null) return null;
+
+    final parts = value.split('-');
+    if (parts.length != 2) return null;
+
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+
+    if (year == null || month == null || month < 1 || month > 12) {
+      return null;
+    }
+
+    return DateTime(year, month, 1);
+  }
+
   // =====================================================
   // TRANSAZIONI
   // =====================================================
@@ -468,6 +563,20 @@ class DatabaseService {
     );
 
     return maps.map(FinanceTransaction.fromMap).toList();
+  }
+
+  // Usato per distinguere un mese "vuoto perché l'utente non ha ancora
+  // registrato nulla" da un mese "vuoto perché non ci sono movimenti in
+  // questo periodo", cosicché la Home possa mostrare il messaggio di
+  // primo avvio soltanto quando serve davvero.
+  Future<bool> hasAnyTransactions() async {
+    final db = await database;
+
+    final result = await db.rawQuery(
+      'SELECT 1 FROM transactions LIMIT 1',
+    );
+
+    return result.isNotEmpty;
   }
 
   Future<List<FinanceTransaction>> getTransactionsForMonth(
@@ -604,6 +713,140 @@ class DatabaseService {
       'fixedExpenses': (row['fixed_expenses'] as num).toDouble(),
       'savingsGoal': (row['savings_goal'] as num).toDouble(),
     };
+  }
+
+  // =====================================================
+  // RIPORTO AUTOMATICO TRA I MESI
+  // =====================================================
+
+  Future<double> getMonthlyCarryover(DateTime targetMonth) async {
+    final db = await database;
+    final normalizedTarget = DateTime(
+      targetMonth.year,
+      targetMonth.month,
+      1,
+    );
+
+    final settingRows = await db.query(
+      'app_settings',
+      columns: ['setting_value'],
+      where: 'setting_key = ?',
+      whereArgs: ['monthly_carryover_start_month'],
+      limit: 1,
+    );
+
+    final savedStartMonth = settingRows.isEmpty
+        ? null
+        : _monthFromKey(
+            settingRows.first['setting_value'] as String?,
+          );
+    final DateTime startMonth;
+
+    if (savedStartMonth == null) {
+      startMonth = normalizedTarget;
+
+      await db.insert(
+        'app_settings',
+        {
+          'setting_key': 'monthly_carryover_start_month',
+          'setting_value': _monthKey(startMonth),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } else {
+      startMonth = savedStartMonth;
+    }
+
+    if (!startMonth.isBefore(normalizedTarget)) {
+      return 0;
+    }
+
+    final annualMaps = await db.query('annual_expenses');
+    final annualExpenses = annualMaps
+        .map(AnnualExpense.fromMap)
+        .toList();
+
+    var carryoverCents = 0;
+    var month = startMonth;
+
+    while (month.isBefore(normalizedTarget)) {
+      await ensureRecurringExpensesForMonth(month);
+
+      final nextMonth = DateTime(
+        month.year,
+        month.month + 1,
+        1,
+      );
+      final startIso = month.toIso8601String();
+      final endIso = nextMonth.toIso8601String();
+
+      final transactionMaps = await db.query(
+        'transactions',
+        where: 'date >= ? AND date < ?',
+        whereArgs: [startIso, endIso],
+      );
+      final plannedMaps = await db.query(
+        'planned_expenses',
+        where: 'due_date >= ? AND due_date < ? AND is_paid = 0',
+        whereArgs: [startIso, endIso],
+      );
+      final budgetMaps = await db.query(
+        'monthly_budgets',
+        where: 'month_key = ?',
+        whereArgs: [_monthKey(month)],
+        limit: 1,
+      );
+
+      var income = 0.0;
+      var paidExpenses = 0.0;
+
+      for (final row in transactionMaps) {
+        final amount = (row['amount'] as num).toDouble();
+
+        if (row['is_income'] == 1) {
+          income += amount;
+        } else {
+          paidExpenses += amount;
+        }
+      }
+
+      final plannedExpenses = plannedMaps.fold<double>(
+        0,
+        (sum, row) => sum + (row['amount'] as num).toDouble(),
+      );
+      final longTermCommitments = annualExpenses.fold<double>(
+        0,
+        (sum, expense) => sum + expense.commitmentForMonth(month),
+      );
+      final savingsGoal = budgetMaps.isEmpty
+          ? 0.0
+          : (budgetMaps.first['savings_goal'] as num).toDouble();
+
+      final closingBalance = MonthlyBalanceCalculator.availableMoney(
+        carryover: MonthlyBalanceCalculator.fromCents(carryoverCents),
+        income: income,
+        paidExpenses: paidExpenses,
+        plannedExpenses: plannedExpenses,
+        longTermCommitments: longTermCommitments,
+        savingsGoal: savingsGoal,
+      );
+
+      carryoverCents = MonthlyBalanceCalculator.toCents(closingBalance);
+
+      await db.insert(
+        'monthly_carryovers',
+        {
+          'month_key': _monthKey(nextMonth),
+          'amount_cents': carryoverCents,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      month = nextMonth;
+    }
+
+    return MonthlyBalanceCalculator.fromCents(carryoverCents);
   }
 
   // =====================================================

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../categories/category_selector.dart';
+import '../currency/app_currency.dart';
 import '../database/database_service.dart';
 import '../localization/app_language.dart';
 import 'annual_expense.dart';
@@ -47,11 +48,8 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
     });
   }
 
-  String formatEuro(double value) {
-    final fixed = value.toStringAsFixed(2);
-    return AppLanguageController.instance.isEnglish
-        ? '€ $fixed'
-        : '€ ${fixed.replaceAll('.', ',')}';
+  String formatMoney(double value) {
+    return AppCurrencyController.instance.format(value);
   }
 
   String formatDate(DateTime date) {
@@ -86,8 +84,8 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
       );
 
       return le(
-        'Metti da parte ${formatEuro(reserve)} al mese fino a ${monthNames[previousMonth.month - 1]} ${previousMonth.year}',
-        'Set aside ${formatEuro(reserve)} per month through ${monthNames[previousMonth.month - 1]} ${previousMonth.year}',
+        'Metti da parte ${formatMoney(reserve)} al mese fino a ${monthNames[previousMonth.month - 1]} ${previousMonth.year}',
+        'Set aside ${formatMoney(reserve)} per month through ${monthNames[previousMonth.month - 1]} ${previousMonth.year}',
       );
     }
 
@@ -138,8 +136,8 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
           title: Text(l('Registra pagamento')),
           content: Text(
             le(
-              'Vuoi registrare "${expense.name}" come spesa pagata oggi per ${formatEuro(expense.amount)}?',
-              'Record "${expense.name}" as paid today for ${formatEuro(expense.amount)}?',
+              'Vuoi registrare "${expense.name}" come spesa pagata oggi per ${formatMoney(expense.amount)}?',
+              'Record "${expense.name}" as paid today for ${formatMoney(expense.amount)}?',
             ),
           ),
           actions: [
@@ -350,7 +348,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          formatEuro(currentCommitment),
+                          formatMoney(currentCommitment),
                           style: TextStyle(
                             color: colors.onPrimaryContainer,
                             fontSize: 34,
@@ -505,7 +503,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      formatEuro(expenses[i].amount),
+                                      formatMoney(expenses[i].amount),
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -643,11 +641,8 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
     return amount / months;
   }
 
-  String formatEuro(double value) {
-    final fixed = value.toStringAsFixed(2);
-    return AppLanguageController.instance.isEnglish
-        ? '€ $fixed'
-        : '€ ${fixed.replaceAll('.', ',')}';
+  String formatMoney(double value) {
+    return AppCurrencyController.instance.format(value);
   }
 
   Future<void> selectDueDate() async {
@@ -768,7 +763,7 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
                 ),
                 decoration: InputDecoration(
                   labelText: l('Importo'),
-                  prefixText: '€ ',
+                  prefixText: AppCurrencyController.instance.inputPrefix,
                 ),
                 onChanged: (_) {
                   setState(() {});
@@ -823,8 +818,8 @@ class _AnnualExpenseDialogState extends State<AnnualExpenseDialog> {
                     Text(
                       previewMonthlyReserve > 0
                           ? le(
-                              'Metti da parte ${formatEuro(previewMonthlyReserve)} al mese dal ${formatDate(savingStartDate)} fino al mese prima della scadenza.',
-                              'Set aside ${formatEuro(previewMonthlyReserve)} per month starting ${formatDate(savingStartDate)} through the month before it is due.',
+                              'Metti da parte ${formatMoney(previewMonthlyReserve)} al mese dal ${formatDate(savingStartDate)} fino al mese prima della scadenza.',
+                              'Set aside ${formatMoney(previewMonthlyReserve)} per month starting ${formatDate(savingStartDate)} through the month before it is due.',
                             )
                           : l('La scadenza è nello stesso mese: non ci sono mesi precedenti in cui mettere da parte questa somma.'),
                       style: TextStyle(

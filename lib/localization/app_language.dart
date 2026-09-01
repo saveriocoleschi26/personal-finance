@@ -105,14 +105,20 @@ class AppLanguageController extends ChangeNotifier with WidgetsBindingObserver {
 
     return const {
           'Spesa': 'Groceries',
+          'Spesa alimentare': 'Groceries',
           'Casa': 'Home',
+          'Casa e bollette': 'Home & Bills',
           'Auto': 'Car',
-          'Svago': 'Leisure',
+          'Auto e trasporti': 'Transportation',
+          'Svago': 'Entertainment',
           'Ristorante': 'Dining',
+          'Ristoranti e bar': 'Dining Out',
           'Studio': 'Education',
+          'Studio e formazione': 'Education',
           'Animali': 'Pets',
           'Viaggi': 'Travel',
           'Salute': 'Health',
+          'Salute e benessere': 'Health & Wellness',
           'Fitness': 'Fitness',
           'Telefono': 'Phone',
           'Abbonamenti': 'Subscriptions',
@@ -121,6 +127,7 @@ class AppLanguageController extends ChangeNotifier with WidgetsBindingObserver {
           'Regali': 'Gifts',
           'Lavoro': 'Work',
           'Shopping': 'Shopping',
+          'Entrata': 'Income',
           'Altro': 'Other',
         }[storedName] ??
         storedName;
@@ -153,12 +160,22 @@ const Map<String, String> _english = {
   'Usa la lingua del telefono': 'Use your phone language',
   'Italiano': 'Italian',
   'Inglese': 'English',
+  'Valuta': 'Currency',
+  'Valuta dell’app': 'App currency',
+  'Scegli la valuta mostrata da Liblo':
+      'Choose the currency displayed by Liblo',
+  'Euro (€)': 'Euro (€)',
+  r'Dollaro statunitense ($)': r'US Dollar ($)',
+  'La scelta cambia soltanto il simbolo mostrato. Gli importi non vengono convertiti.':
+      'This setting only changes the displayed symbol. Amounts are not converted.',
   'Sicurezza': 'Security',
   'Proteggi Liblo': 'Protect Liblo',
   'Aiuto': 'Help',
   'Come funziona Liblo': 'How Liblo works',
   'Rivedi la guida rapida alle funzioni principali':
       'Review the quick guide to the main features',
+  'Rivedi la guida completa alle funzioni principali':
+      'Review the complete guide to the main features',
   'Home': 'Home',
   'Pianifica': 'Plan',
   'Salta': 'Skip',
@@ -173,6 +190,27 @@ const Map<String, String> _english = {
   'Registra i movimenti in un tap': 'Add transactions in one tap',
   'Usa il pulsante “+ Movimento” sempre visibile nella Home per aggiungere rapidamente un’entrata o una spesa.':
       'Use the “+ Transaction” button on Home to quickly add income or an expense.',
+  'Benvenuto in Liblo': 'Welcome to Liblo',
+  'Liblo ti mostra quanto puoi davvero spendere. Il Disponibile tiene conto delle entrate, delle spese e dei soldi che hai già destinato al futuro.':
+      'Liblo shows you how much you can actually spend. Available money accounts for your income, expenses, and money already set aside for the future.',
+  'Registra entrate e spese': 'Add income and expenses',
+  'Tocca il pulsante “+” nella Home per aggiungere un movimento. Puoi scegliere la categoria, cambiare la data e modificare o eliminare i movimenti in seguito.':
+      'Tap the “+” button on Home to add a transaction. You can choose a category, change the date, and edit or delete transactions later.',
+  'Organizza il mese': 'Organize your month',
+  'In Pianifica puoi inserire le spese previste, creare spese ricorrenti e scegliere quanti soldi mettere da parte come obiettivo di risparmio.':
+      'In Plan, you can add planned expenses, create recurring expenses, and choose how much to set aside as your savings goal.',
+  'Preparati alle scadenze': 'Prepare for upcoming expenses',
+  'Aggiungi una scadenza a lungo termine, come bollo o assicurazione. Liblo divide l’importo tra i mesi precedenti e ti indica quanto mettere da parte.':
+      'Add a long-term expense, such as car registration or insurance. Liblo spreads the amount across the preceding months and shows how much to set aside.',
+  'Il saldo continua nel mese nuovo': 'Your balance carries into the new month',
+  'Quando inizia un nuovo mese, il Disponibile positivo o negativo del mese precedente viene riportato automaticamente. Non serve creare un movimento.':
+      'When a new month begins, the previous month’s positive or negative Available balance carries over automatically. You do not need to add a transaction.',
+  'Controlla dove vanno i soldi': 'See where your money goes',
+  'Dalla Home puoi cambiare mese, vedere il riepilogo, l’analisi per categoria e lo storico dei movimenti.':
+      'From Home, you can switch months and view your summary, category breakdown, and transaction history.',
+  'Personalizza Liblo': 'Personalize Liblo',
+  'Nelle Impostazioni puoi gestire categorie, lingua, valuta e protezione biometrica. La scelta tra euro e dollari cambia il simbolo, non converte gli importi.':
+      'In Settings, you can manage categories, language, currency, and biometric protection. Choosing euros or dollars changes the symbol but does not convert amounts.',
   'Modifica data': 'Edit date',
   'Data del movimento': 'Transaction date',
   'Annulla': 'Cancel',
@@ -188,6 +226,7 @@ const Map<String, String> _english = {
   'Puoi registrare anche un movimento dimenticato di un mese precedente.':
       'You can also add a transaction you forgot from a previous month.',
   'Tipo di movimento': 'Transaction type',
+  'Uscita': 'Expense',
   'Entrata': 'Income',
   'Spesa': 'Expense',
   'Salva modifiche': 'Save changes',
@@ -256,6 +295,11 @@ const Map<String, String> _english = {
   'Nessun movimento': 'No transactions',
   'Nessun movimento registrato per questo mese.':
       'No transactions recorded for this month.',
+  'Inserisci il tuo primo movimento': 'Add your first transaction',
+  'Registra un\'entrata o una spesa per iniziare a vedere il tuo Disponibile.':
+      'Record an income or an expense to start seeing your Available balance.',
+  'Saldo mese precedente': 'Previous month balance',
+  'Riportato automaticamente': 'Carried over automatically',
   'Ho capito': 'Got it',
   'Eliminare movimento?': 'Delete transaction?',
   'Organizza ciò che devi pagare e quanto vuoi mettere da parte.':

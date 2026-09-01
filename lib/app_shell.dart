@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'currency/app_currency.dart';
 import 'database/database_service.dart';
 import 'home_page.dart';
 import 'localization/app_language.dart';
@@ -24,6 +25,7 @@ class _AppShellState extends State<AppShell> {
     super.initState();
 
     AppLanguageController.instance.addListener(_languageChanged);
+    AppCurrencyController.instance.addListener(_currencyChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showOnboardingIfNeeded();
@@ -34,9 +36,14 @@ class _AppShellState extends State<AppShell> {
     if (mounted) setState(() {});
   }
 
+  void _currencyChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     AppLanguageController.instance.removeListener(_languageChanged);
+    AppCurrencyController.instance.removeListener(_currencyChanged);
     refreshNotifier.dispose();
     super.dispose();
   }

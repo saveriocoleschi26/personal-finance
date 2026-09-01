@@ -61,8 +61,10 @@ class _CategorySelectorState extends State<CategorySelector> {
     );
 
     if (!selectionExists && filtered.isNotEmpty) {
-      final altro = filtered.where((category) => category.isProtected).toList();
-      resolvedSelection = altro.isNotEmpty ? altro.first.name : filtered.first.name;
+      // Se la categoria iniziale non esiste (per esempio dopo che l'utente ha
+      // personalizzato l'elenco), scegliamo la prima categoria attiva invece
+      // di ripiegare automaticamente su "Altro".
+      resolvedSelection = filtered.first.name;
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {

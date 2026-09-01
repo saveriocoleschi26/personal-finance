@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../categories/category_selector.dart';
+import '../currency/app_currency.dart';
 import '../database/database_service.dart';
 import '../localization/app_language.dart';
 import '../recurring_expenses/recurring_expenses_page.dart';
@@ -53,11 +54,8 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
     });
   }
 
-  String formatEuro(double value) {
-    final fixed = value.toStringAsFixed(2);
-    return AppLanguageController.instance.isEnglish
-        ? '€ $fixed'
-        : '€ ${fixed.replaceAll('.', ',')}';
+  String formatMoney(double value) {
+    return AppCurrencyController.instance.format(value);
   }
 
   String formatDate(DateTime date) {
@@ -134,8 +132,8 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
           title: Text(l('Registra pagamento')),
           content: Text(
             le(
-              'Vuoi registrare "${expense.name}" come spesa pagata oggi per ${formatEuro(expense.amount)}?',
-              'Record "${expense.name}" as paid today for ${formatEuro(expense.amount)}?',
+              'Vuoi registrare "${expense.name}" come spesa pagata oggi per ${formatMoney(expense.amount)}?',
+              'Record "${expense.name}" as paid today for ${formatMoney(expense.amount)}?',
             ),
           ),
           actions: [
@@ -370,7 +368,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          formatEuro(unpaidTotal),
+                          formatMoney(unpaidTotal),
                           style: TextStyle(
                             color: colors.onPrimary,
                             fontSize: 36,
@@ -380,8 +378,8 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                         const SizedBox(height: 6),
                         Text(
                           le(
-                            '${formatEuro(paidTotal)} già registrate come pagate',
-                            '${formatEuro(paidTotal)} already recorded as paid',
+                            '${formatMoney(paidTotal)} già registrate come pagate',
+                            '${formatMoney(paidTotal)} already recorded as paid',
                           ),
                           style: TextStyle(
                             color: colors.onPrimary.withValues(alpha: 0.80),
@@ -462,7 +460,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                               },
                               child: PlannedExpenseRow(
                                 expense: expenses[i],
-                                formatEuro: formatEuro,
+                                formatMoney: formatMoney,
                                 formatDate: formatDate,
                               ),
                             ),
@@ -484,13 +482,13 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
 
 class PlannedExpenseRow extends StatelessWidget {
   final PlannedExpense expense;
-  final String Function(double) formatEuro;
+  final String Function(double) formatMoney;
   final String Function(DateTime) formatDate;
 
   const PlannedExpenseRow({
     super.key,
     required this.expense,
-    required this.formatEuro,
+    required this.formatMoney,
     required this.formatDate,
   });
 
@@ -542,7 +540,7 @@ class PlannedExpenseRow extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      formatEuro(expense.amount),
+                      formatMoney(expense.amount),
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                       ),
@@ -723,7 +721,7 @@ class _PlannedExpenseDialogState extends State<PlannedExpenseDialog> {
                 ),
                 decoration: InputDecoration(
                   labelText: l('Importo'),
-                  prefixText: '€ ',
+                  prefixText: AppCurrencyController.instance.inputPrefix,
                   hintText: l('Es. 500'),
                 ),
                 onChanged: (value) {

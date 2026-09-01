@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import 'add_transaction_page.dart';
 import 'annual_expenses/annual_expense.dart';
 import 'categories/expense_category.dart';
+import 'currency/app_currency.dart';
 import 'database/database_service.dart';
 import 'localization/app_language.dart';
+import 'monthly_carryover/monthly_balance_calculator.dart';
 import 'planned_expenses/planned_expense.dart';
 import 'settings/settings_page.dart';
 import 'transaction/final_transaction.dart';
@@ -29,20 +33,25 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with WidgetsBindingObserver {
   final List<FinanceTransaction> transactions = [];
   List<AnnualExpense> annualExpenses = [];
   List<PlannedExpense> monthlyPlannedExpenses = [];
   double savingsGoal = 0;
+  double monthlyCarryover = 0;
+  bool hasAnyTransactionsEver = true;
 
   int touchedCategoryIndex = -1;
   bool isLoading = true;
   bool showAllTransactions = false;
   bool _skipNextExternalRefresh = false;
+  Timer? _monthBoundaryTimer;
 
   Map<String, ExpenseCategory> _categoriesByName = {};
 
   late DateTime selectedMonth;
+  late DateTime _lastKnownCalendarMonth;
 
   List<String> get monthNames => AppLanguageController.instance.monthNames;
 
@@ -57,15 +66,76 @@ class _HomePageState extends State<HomePage> {
       now.month,
       1,
     );
+    _lastKnownCalendarMonth = selectedMonth;
 
+    WidgetsBinding.instance.addObserver(this);
     widget.refreshNotifier.addListener(_externalRefresh);
+    _scheduleMonthBoundaryRefresh();
     loadSelectedMonthData();
   }
 
   @override
   void dispose() {
+    _monthBoundaryTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     widget.refreshNotifier.removeListener(_externalRefresh);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+
+    _moveToNewMonthIfNeeded();
+    _scheduleMonthBoundaryRefresh();
+  }
+
+  void _scheduleMonthBoundaryRefresh() {
+    _monthBoundaryTimer?.cancel();
+
+    final now = DateTime.now();
+    final nextMonth = DateTime(
+      now.year,
+      now.month + 1,
+      1,
+    );
+    final delay = nextMonth.difference(now) +
+        const Duration(seconds: 1);
+
+    _monthBoundaryTimer = Timer(
+      delay,
+      () async {
+        await _moveToNewMonthIfNeeded();
+
+        if (mounted) {
+          _scheduleMonthBoundaryRefresh();
+        }
+      },
+    );
+  }
+
+  Future<void> _moveToNewMonthIfNeeded() async {
+    if (!mounted) return;
+
+    final now = DateTime.now();
+    final currentMonth = DateTime(
+      now.year,
+      now.month,
+      1,
+    );
+
+    if (!_lastKnownCalendarMonth.isBefore(currentMonth)) return;
+
+    _lastKnownCalendarMonth = currentMonth;
+
+    setState(() {
+      selectedMonth = currentMonth;
+      isLoading = true;
+      touchedCategoryIndex = -1;
+      showAllTransactions = false;
+    });
+
+    await loadSelectedMonthData();
   }
 
   void _externalRefresh() {
@@ -168,20 +238,24 @@ class _HomePageState extends State<HomePage> {
     final monthToLoad = selectedMonth;
 
     // Avviamo le letture insieme: SQLite le gestisce in modo sicuro e
-    // la Home non aspetta cinque operazioni una dopo l'altra.
+    // la Home non aspetta le operazioni una dopo l'altra.
     final database = DatabaseService.instance;
     final transactionsFuture = database.getTransactionsForMonth(monthToLoad);
     final budgetFuture = database.getMonthlyBudget(monthToLoad);
+    final carryoverFuture = database.getMonthlyCarryover(monthToLoad);
     final annualExpensesFuture = database.getAnnualExpenses();
     final plannedExpensesFuture =
         database.getPlannedExpensesForMonth(monthToLoad);
     final categoriesFuture = database.getCategories(includeInactive: true);
+    final hasAnyTransactionsFuture = database.hasAnyTransactions();
 
     final savedTransactions = await transactionsFuture;
     final savedBudget = await budgetFuture;
+    final savedCarryover = await carryoverFuture;
     final savedAnnualExpenses = await annualExpensesFuture;
     final savedPlannedExpenses = await plannedExpensesFuture;
     final savedCategories = await categoriesFuture;
+    final savedHasAnyTransactions = await hasAnyTransactionsFuture;
 
     if (!mounted) return;
 
@@ -195,11 +269,13 @@ class _HomePageState extends State<HomePage> {
       transactions.addAll(savedTransactions);
 
       savingsGoal = savedBudget['savingsGoal'] ?? 0;
+      monthlyCarryover = savedCarryover;
       annualExpenses = savedAnnualExpenses;
       monthlyPlannedExpenses = savedPlannedExpenses;
       _categoriesByName = {
         for (final category in savedCategories) category.name: category,
       };
+      hasAnyTransactionsEver = savedHasAnyTransactions;
 
       touchedCategoryIndex = -1;
       isLoading = false;
@@ -267,11 +343,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Disponibilità reale del mese: ciò che resta dopo aver considerato
-  // spese già pagate, spese pianificate, quote delle spese annuali
-  // e obiettivo di risparmio. Può essere negativa se il mese è
-  // sovra-impegnato.
+  // il riporto del mese precedente, le spese già pagate, le spese
+  // pianificate, le quote delle scadenze a lungo termine e l'obiettivo
+  // di risparmio. Può essere negativa se il mese è sovra-impegnato.
   double get availableMoney {
-    return totalIncome - committedExpenses - savingsGoal;
+    return MonthlyBalanceCalculator.availableMoney(
+      carryover: monthlyCarryover,
+      income: totalIncome,
+      paidExpenses: totalExpenses,
+      plannedExpenses: monthlyPlanningCommitment,
+      longTermCommitments: annualPlanningCommitment,
+      savingsGoal: savingsGoal,
+    );
   }
 
   // Il budget spendibile non può essere negativo: se gli impegni
@@ -303,9 +386,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   double get spendingPercentage {
-    if (totalIncome <= 0) return 0;
+    final availableResources = totalIncome + monthlyCarryover;
 
-    final percentage = totalAssignedMoney / totalIncome;
+    if (availableResources <= 0) return 0;
+
+    final percentage = totalAssignedMoney / availableResources;
 
     if (percentage > 1) return 1;
 
@@ -408,11 +493,8 @@ class _HomePageState extends State<HomePage> {
         Icons.receipt_outlined;
   }
 
-  String formatEuro(double value) {
-    final fixed = value.toStringAsFixed(2);
-    return AppLanguageController.instance.isEnglish
-        ? '€ $fixed'
-        : '€ ${fixed.replaceAll('.', ',')}';
+  String formatMoney(double value) {
+    return AppCurrencyController.instance.format(value);
   }
 
   String formatDate(DateTime date) {
@@ -469,8 +551,8 @@ class _HomePageState extends State<HomePage> {
         content: Text(
           isCurrentMonth
               ? le(
-                  'Movimento aggiunto · Disponibile ${formatEuro(availableMoney)}',
-                  'Transaction added · Available ${formatEuro(availableMoney)}',
+                  'Movimento aggiunto · Disponibile ${formatMoney(availableMoney)}',
+                  'Transaction added · Available ${formatMoney(availableMoney)}',
                 )
               : le(
                   'Movimento aggiunto in $selectedMonthLabel',
@@ -673,6 +755,16 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> showCarryoverInfo() async {
+    await showInfo(
+      title: l('Saldo mese precedente'),
+      message: le(
+        'È il Disponibile del mese scorso, positivo o negativo, riportato automaticamente all\'inizio di questo mese. Si aggiorna da solo: per modificarlo devi correggere i movimenti del mese di provenienza, non puoi cambiarlo da qui.',
+        'This is last month\'s Available balance, positive or negative, carried over automatically at the start of this month. It updates on its own: to change it you need to fix the transactions in the month it came from, you can\'t edit it here.',
+      ),
+    );
+  }
+
   List<PieChartSectionData> buildPieSections(
     List<MapEntry<String, double>> entries,
     double totalAmount,
@@ -709,8 +801,8 @@ class _HomePageState extends State<HomePage> {
     final String footer;
     if (isCurrentMonth) {
       footer = le(
-        'Budget giornaliero ${formatEuro(dailySpendingLimit)}',
-        'Daily budget ${formatEuro(dailySpendingLimit)}',
+        'Budget giornaliero ${formatMoney(dailySpendingLimit)}',
+        'Daily budget ${formatMoney(dailySpendingLimit)}',
       );
     } else if (balance > 0) {
       footer = l('Hai chiuso il mese in positivo');
@@ -818,8 +910,9 @@ class _HomePageState extends State<HomePage> {
                         onTap: () {
                           showInfo(
                             title: l('Disponibile'),
-                            message: l(
-                              'È quello che ti resta davvero da spendere dopo aver considerato le spese già fatte, quelle da pagare, i soldi da mettere da parte per le scadenze a lungo termine e il tuo obiettivo di risparmio.',
+                            message: le(
+                              'È quello che ti resta davvero da spendere dopo aver considerato ciò che è rimasto, in positivo o in negativo, dal mese precedente, le spese già fatte, quelle da pagare, i soldi da mettere da parte per le scadenze a lungo termine e il tuo obiettivo di risparmio.',
+                              'It is what you can actually spend after accounting for the positive or negative amount carried over from the previous month, expenses already paid and still due, money set aside for long-term expenses, and your savings goal.',
                             ),
                           );
                         },
@@ -841,7 +934,7 @@ class _HomePageState extends State<HomePage> {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    formatEuro(value),
+                    formatMoney(value),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 43,
@@ -884,7 +977,7 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: OverviewCard(
                 title: l('Entrate'),
-                value: formatEuro(totalIncome),
+                value: formatMoney(totalIncome),
                 icon: Icons.trending_up_rounded,
                 accentColor: const Color(0xFF119B6B),
                 iconBackground: const Color(0xFFE1F5EC),
@@ -894,7 +987,7 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: OverviewCard(
                 title: l('Uscite'),
-                value: formatEuro(monthlyOutgoings),
+                value: formatMoney(monthlyOutgoings),
                 icon: Icons.trending_down_rounded,
                 accentColor: const Color(0xFFE04F4F),
                 iconBackground: const Color(0xFFFFE9E7),
@@ -917,7 +1010,7 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: OverviewCard(
                 title: le('Da mettere da parte', 'Set aside'),
-                value: formatEuro(savingsGoal),
+                value: formatMoney(savingsGoal),
                 icon: Icons.savings_outlined,
                 accentColor: const Color(0xFF287AD6),
                 iconBackground: const Color(0xFFE5F0FC),
@@ -927,7 +1020,7 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: OverviewCard(
                 title: l('Scadenze a lungo termine'),
-                value: formatEuro(annualPlanningCommitment),
+                value: formatMoney(annualPlanningCommitment),
                 icon: Icons.calendar_month_outlined,
                 accentColor: const Color(0xFF7556C8),
                 iconBackground: const Color(0xFFF0EAFB),
@@ -1032,7 +1125,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   categoryColor: categoryColor,
                   categoryLabel: analysisCategoryLabel,
-                  formatEuro: formatEuro,
+                  formatMoney: formatMoney,
                   onTouched: (index) {
                     setState(() {
                       touchedCategoryIndex = index;
@@ -1065,7 +1158,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                 transactions: visibleTransactions,
                 showAll: showAllTransactions,
-                formatEuro: formatEuro,
+                formatMoney: formatMoney,
                 formatDate: formatDate,
                 categoryIcon: categoryIcon,
                 categoryColor: categoryColor,
@@ -1077,6 +1170,15 @@ class _HomePageState extends State<HomePage> {
                       }
                     : null,
                 onTransactionTap: showTransactionActions,
+                carryoverAmount:
+                    monthlyCarryover != 0 ? monthlyCarryover : null,
+                carryoverFormattedAmount:
+                    formatMoney(monthlyCarryover.abs()),
+                onCarryoverTap: showCarryoverInfo,
+                showFirstTransactionPrompt:
+                    !hasAnyTransactionsEver && transactions.isEmpty,
+                onAddFirstTransaction:
+                    isCurrentMonth ? addTransaction : null,
               ),
             ],
           ],
@@ -1292,7 +1394,7 @@ class SpendingAnalysisCard extends StatelessWidget {
   final List<PieChartSectionData> pieSections;
   final Color Function(String category) categoryColor;
   final String Function(String category) categoryLabel;
-  final String Function(double value) formatEuro;
+  final String Function(double value) formatMoney;
   final ValueChanged<int> onTouched;
 
   const SpendingAnalysisCard({
@@ -1303,18 +1405,18 @@ class SpendingAnalysisCard extends StatelessWidget {
     required this.pieSections,
     required this.categoryColor,
     required this.categoryLabel,
-    required this.formatEuro,
+    required this.formatMoney,
     required this.onTouched,
   });
 
   @override
   Widget build(BuildContext context) {
     String centerTitle = l('Totale destinato');
-    String centerValue = formatEuro(totalAmount);
+    String centerValue = formatMoney(totalAmount);
 
     if (touchedIndex >= 0 && touchedIndex < entries.length) {
       centerTitle = categoryLabel(entries[touchedIndex].key);
-      centerValue = formatEuro(entries[touchedIndex].value);
+      centerValue = formatMoney(entries[touchedIndex].value);
     }
 
     return Container(
@@ -1335,24 +1437,13 @@ class SpendingAnalysisCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l('Analisi spese'),
-                  style: const TextStyle(
-                    color: Color(0xFF14263A),
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF889592),
-                size: 24,
-              ),
-            ],
+          Text(
+            l('Analisi spese'),
+            style: const TextStyle(
+              color: Color(0xFF14263A),
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 15),
           LayoutBuilder(
@@ -1435,7 +1526,7 @@ class SpendingAnalysisCard extends StatelessWidget {
                         for (int i = 0; i < entries.length; i++) ...[
                           AnalysisLegendRow(
                             label: categoryLabel(entries[i].key),
-                            amount: formatEuro(entries[i].value),
+                            amount: formatMoney(entries[i].value),
                             percentage:
                                 totalAmount <= 0 ? 0 : entries[i].value / totalAmount,
                             color: categoryColor(entries[i].key),
@@ -1540,24 +1631,34 @@ class RecentTransactionsCard extends StatelessWidget {
   final String title;
   final List<FinanceTransaction> transactions;
   final bool showAll;
-  final String Function(double value) formatEuro;
+  final String Function(double value) formatMoney;
   final String Function(DateTime date) formatDate;
   final IconData Function(String category) categoryIcon;
   final Color Function(String category) categoryColor;
   final VoidCallback? onToggleAll;
   final ValueChanged<FinanceTransaction> onTransactionTap;
+  final double? carryoverAmount;
+  final String? carryoverFormattedAmount;
+  final VoidCallback? onCarryoverTap;
+  final bool showFirstTransactionPrompt;
+  final VoidCallback? onAddFirstTransaction;
 
   const RecentTransactionsCard({
     super.key,
     required this.title,
     required this.transactions,
     required this.showAll,
-    required this.formatEuro,
+    required this.formatMoney,
     required this.formatDate,
     required this.categoryIcon,
     required this.categoryColor,
     required this.onToggleAll,
     required this.onTransactionTap,
+    this.carryoverAmount,
+    this.carryoverFormattedAmount,
+    this.onCarryoverTap,
+    this.showFirstTransactionPrompt = false,
+    this.onAddFirstTransaction,
   });
 
   @override
@@ -1623,16 +1724,34 @@ class RecentTransactionsCard extends StatelessWidget {
               ],
             ),
           ),
+          if (carryoverAmount != null) ...[
+            CarryoverItem(
+              amount: carryoverAmount!,
+              formattedAmount: carryoverFormattedAmount ??
+                  formatMoney(carryoverAmount!.abs()),
+              onTap: onCarryoverTap,
+            ),
+            const Divider(
+              height: 1,
+              indent: 72,
+              endIndent: 16,
+              color: Color(0xFFEDF0EF),
+            ),
+          ],
           if (transactions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 18),
-              child: EmptyTransactions(compact: true),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+              child: EmptyTransactions(
+                compact: true,
+                showFirstPrompt: showFirstTransactionPrompt,
+                onAddTransaction: onAddFirstTransaction,
+              ),
             )
           else
             for (int i = 0; i < transactions.length; i++) ...[
               TransactionItem(
                 transaction: transactions[i],
-                formattedAmount: formatEuro(transactions[i].amount),
+                formattedAmount: formatMoney(transactions[i].amount),
                 formattedDate: formatDate(transactions[i].date),
                 categoryIcon: categoryIcon(transactions[i].category),
                 categoryColor: categoryColor(transactions[i].category),
@@ -1688,13 +1807,11 @@ class TransactionItem extends StatelessWidget {
               width: 43,
               height: 43,
               decoration: BoxDecoration(
-                color: isIncome
-                    ? const Color(0xFF24BA70)
-                    : categoryColor,
+                color: categoryColor,
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                isIncome ? Icons.work_outline_rounded : categoryIcon,
+                categoryIcon,
                 size: 21,
                 color: Colors.white,
               ),
@@ -1734,6 +1851,91 @@ class TransactionItem extends StatelessWidget {
               fit: BoxFit.scaleDown,
               child: Text(
                 '${isIncome ? '+' : '-'} $formattedAmount',
+                style: TextStyle(
+                  color: amountColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CarryoverItem extends StatelessWidget {
+  final double amount;
+  final String formattedAmount;
+  final VoidCallback? onTap;
+
+  const CarryoverItem({
+    super.key,
+    required this.amount,
+    required this.formattedAmount,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = amount >= 0;
+    final amountColor = isPositive
+        ? const Color(0xFF119B6B)
+        : const Color(0xFF1F2D31);
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        child: Row(
+          children: [
+            Container(
+              width: 43,
+              height: 43,
+              decoration: const BoxDecoration(
+                color: Color(0xFF5E78A8),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.sync_alt_rounded,
+                size: 21,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l('Saldo mese precedente'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF17282D),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l('Riportato automaticamente'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF7E8B89),
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '${isPositive ? '+' : '-'} $formattedAmount',
                 style: TextStyle(
                   color: amountColor,
                   fontSize: 14,
@@ -1799,10 +2001,14 @@ class AnalysisEmptyState extends StatelessWidget {
 
 class EmptyTransactions extends StatelessWidget {
   final bool compact;
+  final bool showFirstPrompt;
+  final VoidCallback? onAddTransaction;
 
   const EmptyTransactions({
     super.key,
     this.compact = false,
+    this.showFirstPrompt = false,
+    this.onAddTransaction,
   });
 
   @override
@@ -1822,27 +2028,42 @@ class EmptyTransactions extends StatelessWidget {
             ),
       child: Column(
         children: [
-          const Icon(
-            Icons.receipt_long_outlined,
+          Icon(
+            showFirstPrompt
+                ? Icons.celebration_outlined
+                : Icons.receipt_long_outlined,
             size: 36,
-            color: Color(0xFF899694),
+            color: const Color(0xFF899694),
           ),
           const SizedBox(height: 10),
           Text(
-            l('Nessun movimento'),
+            showFirstPrompt
+                ? l('Inserisci il tuo primo movimento')
+                : l('Nessun movimento'),
+            textAlign: TextAlign.center,
             style: const TextStyle(
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            l('Nessun movimento registrato per questo mese.'),
+            showFirstPrompt
+                ? l('Registra un\'entrata o una spesa per iniziare a vedere il tuo Disponibile.')
+                : l('Nessun movimento registrato per questo mese.'),
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Color(0xFF7E8B89),
               fontSize: 12.5,
             ),
           ),
+          if (showFirstPrompt && onAddTransaction != null) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onAddTransaction,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: Text(l('Aggiungi movimento')),
+            ),
+          ],
         ],
       ),
     );
