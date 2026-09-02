@@ -38,6 +38,7 @@ dependencies:
   sqflite: ^2.4.3
   path: ^1.9.1
   local_auth: ^3.0.2
+  icloud_storage: ^2.2.0
 
 dev_dependencies:
   flutter_test:

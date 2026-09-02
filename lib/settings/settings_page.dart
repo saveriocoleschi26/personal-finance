@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../categories/categories_page.dart';
+import '../cloud_sync/icloud_sync_service.dart';
 import '../currency/app_currency.dart';
 import '../localization/app_language.dart';
 import '../onboarding/onboarding_page.dart';
@@ -17,6 +18,8 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _changingSecurity = false;
+  bool _syncingNow = false;
+  DateTime? _lastSyncTime;
 
   AppLanguageController get _language => AppLanguageController.instance;
   AppCurrencyController get _currency => AppCurrencyController.instance;
@@ -45,6 +48,47 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _refresh() {
     if (mounted) setState(() {});
+  }
+
+  String _lastSyncLabel() {
+    final lastSync = _lastSyncTime;
+    if (lastSync == null) {
+      return le(
+        'Tocca per sincronizzare ora',
+        'Tap to sync now',
+      );
+    }
+    final hh = lastSync.hour.toString().padLeft(2, '0');
+    final mm = lastSync.minute.toString().padLeft(2, '0');
+    return le(
+      'Ultima sincronizzazione: $hh:$mm',
+      'Last synced: $hh:$mm',
+    );
+  }
+
+  Future<void> _syncNow() async {
+    setState(() {
+      _syncingNow = true;
+    });
+
+    await ICloudSyncService.uploadDatabase();
+
+    if (!mounted) return;
+    setState(() {
+      _syncingNow = false;
+      _lastSyncTime = DateTime.now();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          le(
+            'Sincronizzazione completata',
+            'Sync completed',
+          ),
+        ),
+      ),
+    );
   }
 
   String _languageSubtitle() {
@@ -299,6 +343,58 @@ class _SettingsPageState extends State<SettingsPage> {
               le(
                 'Quando la protezione è attiva, Liblo si blocca all’avvio e dopo essere rimasta in background per qualche secondo.',
                 'When protection is on, Liblo locks at startup and after being in the background for a short time.',
+              ),
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 26),
+          Text(
+            l('Backup'),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _SettingsCard(
+            child: ListTile(
+              leading: _SettingsIcon(
+                icon: Icons.cloud_outlined,
+                color: colors.primary,
+                background: colors.primaryContainer,
+              ),
+              title: Text(
+                l('Sincronizza con iCloud'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                _syncingNow
+                    ? l('Sincronizzazione in corso...')
+                    : _lastSyncLabel(),
+              ),
+              trailing: _syncingNow
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded),
+              onTap: _syncingNow ? null : _syncNow,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              le(
+                'Liblo salva automaticamente una copia dei tuoi dati su iCloud quando esci dall’app, così li ritrovi anche sui tuoi altri dispositivi Apple. Usa questo pulsante se vuoi forzare subito la sincronizzazione.',
+                'Liblo automatically saves a copy of your data to iCloud when you leave the app, so you’ll find it on your other Apple devices too. Use this button if you want to force a sync right away.',
               ),
               style: TextStyle(
                 fontSize: 12,

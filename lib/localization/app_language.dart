@@ -170,6 +170,9 @@ const Map<String, String> _english = {
       'This setting only changes the displayed symbol. Amounts are not converted.',
   'Sicurezza': 'Security',
   'Proteggi Liblo': 'Protect Liblo',
+  'Backup': 'Backup',
+  'Sincronizza con iCloud': 'Sync with iCloud',
+  'Sincronizzazione in corso...': 'Syncing...',
   'Aiuto': 'Help',
   'Come funziona Liblo': 'How Liblo works',
   'Rivedi la guida rapida alle funzioni principali':

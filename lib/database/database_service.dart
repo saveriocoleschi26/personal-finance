@@ -22,9 +22,21 @@ class DatabaseService {
     return _database!;
   }
 
-  Future<Database> _initDatabase() async {
+  // Nome fisso del file del database, usato anche dal servizio di
+  // sincronizzazione iCloud per sapere quale file caricare/scaricare.
+  static const String databaseFileName = 'personal_finance.db';
+
+  // Restituisce il percorso locale del file del database SENZA aprirlo.
+  // Serve al servizio di sincronizzazione iCloud, che deve poter
+  // scaricare l'eventuale copia più recente PRIMA che il database
+  // venga aperto per la prima volta.
+  Future<String> getDatabaseFilePath() async {
     final databasePath = await getDatabasesPath();
-    final path = join(databasePath, 'personal_finance.db');
+    return join(databasePath, databaseFileName);
+  }
+
+  Future<Database> _initDatabase() async {
+    final path = await getDatabaseFilePath();
 
     return openDatabase(
       path,

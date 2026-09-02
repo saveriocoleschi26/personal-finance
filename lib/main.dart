@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_shell.dart';
+import 'cloud_sync/icloud_sync_service.dart';
 import 'currency/app_currency.dart';
 import 'localization/app_language.dart';
 import 'security/biometric_gate.dart';
@@ -11,11 +12,45 @@ Future<void> main() async {
   await AppLanguageController.instance.load();
   await AppCurrencyController.instance.load();
   await BiometricSecurityController.instance.load();
+  // Se su iCloud c'è una copia del database più recente di quella locale
+  // (es. aggiunta da un altro dispositivo), la scarichiamo PRIMA di aprire
+  // il database. In caso di problemi con iCloud l'app parte comunque
+  // normalmente con i dati locali.
+  await ICloudSyncService.downloadIfNewer();
   runApp(const PersonalFinanceApp());
 }
 
-class PersonalFinanceApp extends StatelessWidget {
+class PersonalFinanceApp extends StatefulWidget {
   const PersonalFinanceApp({super.key});
+
+  @override
+  State<PersonalFinanceApp> createState() => _PersonalFinanceAppState();
+}
+
+class _PersonalFinanceAppState extends State<PersonalFinanceApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Quando l'utente esce dall'app (per chiuderla o passare a un'altra
+    // app) carichiamo la copia aggiornata del database su iCloud, così
+    // sarà disponibile sugli altri dispositivi alla prossima apertura.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      ICloudSyncService.uploadDatabase();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
