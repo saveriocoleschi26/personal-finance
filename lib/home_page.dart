@@ -253,25 +253,25 @@ class _HomePageState extends State<HomePage>
       final hasAnyTransactionsFuture = database.hasAnyTransactions();
 
       final savedTransactions = await transactionsFuture.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 15),
       );
       final savedBudget = await budgetFuture.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 15),
       );
       final savedCarryover = await carryoverFuture.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 15),
       );
       final savedAnnualExpenses = await annualExpensesFuture.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 15),
       );
       final savedPlannedExpenses = await plannedExpensesFuture.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 15),
       );
       final savedCategories = await categoriesFuture.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 15),
       );
       final savedHasAnyTransactions = await hasAnyTransactionsFuture.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 15),
       );
 
       if (!mounted) return;

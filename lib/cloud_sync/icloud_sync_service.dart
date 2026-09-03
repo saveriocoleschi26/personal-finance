@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:icloud_storage/icloud_storage.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Nome del file del database, condiviso con DatabaseService.
 /// Tenuto qui (invece di importare database_service.dart) per evitare
@@ -89,7 +90,24 @@ class ICloudSyncService {
       final header = await handle.read(16);
       await handle.close();
 
-      return String.fromCharCodes(header).startsWith('SQLite format 3');
+      if (!String.fromCharCodes(header).startsWith('SQLite format 3')) {
+        return false;
+      }
+
+      // Non ci fermiamo all'intestazione: a volte un file appena arrivato
+      // da iCloud supera questo controllo ma non è ancora del tutto
+      // "pronto" per essere letto davvero. Proviamo quindi ad aprirlo
+      // sul serio e a leggerci qualcosa, qui durante l'avvio (dove un
+      // piccolo ritardo passa inosservato), piuttosto che scoprirlo più
+      // tardi mentre l'utente sta già usando l'app.
+      final testDb = await openReadOnlyDatabase(file.path);
+      try {
+        await testDb.rawQuery('SELECT count(*) FROM sqlite_master');
+      } finally {
+        await testDb.close();
+      }
+
+      return true;
     } catch (_) {
       return false;
     }
