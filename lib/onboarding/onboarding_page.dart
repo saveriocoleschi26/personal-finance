@@ -80,10 +80,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   Future<void> finish() async {
     if (widget.markCompletedOnFinish) {
-      await DatabaseService.instance.setBoolSetting(
-        'onboarding_completed',
-        true,
-      );
+      // Avvolgiamo il salvataggio in un try/catch: se per qualunque
+      // motivo fallisse (es. database appena scaricato da iCloud al
+      // primissimo avvio su un nuovo dispositivo), l'utente non deve
+      // comunque restare bloccato sulla guida. Nel peggiore dei casi,
+      // la guida ricomparirà alla prossima apertura dell'app.
+      try {
+        await DatabaseService.instance
+            .setBoolSetting('onboarding_completed', true)
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {
+        // Errore silenzioso di proposito: si procede comunque sotto.
+      }
     }
 
     if (!mounted) return;
