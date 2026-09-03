@@ -73,7 +73,9 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
     final dbPath = await DatabaseService.instance.getDatabaseFilePath();
-    await ICloudSyncService.uploadDatabase(dbPath);
+    final versionPath =
+        await DatabaseService.instance.getDataVersionFilePath();
+    await ICloudSyncService.uploadDatabase(dbPath, versionPath);
 
     if (!mounted) return;
     setState(() {

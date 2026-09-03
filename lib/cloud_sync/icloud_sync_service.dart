@@ -4,11 +4,12 @@ import 'dart:io';
 import 'package:icloud_storage/icloud_storage.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// Nome del file del database, condiviso con DatabaseService.
-/// Tenuto qui (invece di importare database_service.dart) per evitare
-/// un riferimento circolare tra i due file, dato che DatabaseService
-/// chiama questo servizio dopo ogni scrittura.
+/// Nomi fissi dei file coinvolti nella sincronizzazione, condivisi con
+/// DatabaseService. Tenuti qui (invece di importare database_service.dart)
+/// per evitare un riferimento circolare tra i due file, dato che
+/// DatabaseService chiama questo servizio dopo ogni scrittura.
 const String _databaseFileName = 'personal_finance.db';
+const String _versionFileName = 'personal_finance.version';
 
 /// Gestisce la sincronizzazione del database locale (sqflite) con iCloud,
 /// così da poter usare Liblo su più dispositivi Apple con gli stessi dati.
@@ -19,6 +20,13 @@ const String _databaseFileName = 'personal_finance.db';
 /// caso di modifiche fatte su due dispositivi nello stesso momento, senza
 /// che uno dei due abbia fatto in tempo a sincronizzarsi: in quel caso
 /// vince l'ultima copia caricata.
+///
+/// Per decidere quale copia sia più recente, insieme al database viene
+/// caricato anche un piccolo file di testo con un numero di versione
+/// (vedi [_versionFileName]). Il confronto tra dispositivi legge SOLO
+/// questo piccolo file di testo, mai il database vero: aprire il
+/// database per un semplice confronto rischiava di intralciare
+/// l'apertura "vera" che l'app fa subito dopo per usarlo davvero.
 class ICloudSyncService {
   ICloudSyncService._();
 
@@ -27,93 +35,96 @@ class ICloudSyncService {
   static bool get _isSupportedPlatform => Platform.isIOS || Platform.isMacOS;
 
   /// Da chiamare UNA SOLA VOLTA, all'avvio dell'app, PRIMA di aprire il
-  /// database locale. Se su iCloud esiste una copia più recente di
-  /// quella locale, la scarica e sostituisce il file locale.
+  /// database locale.
   ///
   /// [localDbPath] è il percorso locale del file del database.
+  /// [localVersionPath] è il percorso locale del piccolo file "marcatore
+  /// di versione" (vedi sopra).
   ///
   /// Non lancia mai eccezioni: se qualcosa va storto (iCloud non
   /// disponibile, utente non loggato, nessuna connessione...) l'app deve
   /// comunque poter partire e funzionare normalmente in locale.
-  static Future<void> downloadIfNewer(String localDbPath) async {
+  static Future<void> downloadIfNewer(
+    String localDbPath,
+    String localVersionPath,
+  ) async {
     if (!_isSupportedPlatform) return;
 
     try {
-      final remoteFile = await _findRemoteDatabaseFile();
-      if (remoteFile == null) return;
+      final remoteVersion = await _fetchRemoteVersion(localVersionPath);
+      if (remoteVersion == null) return; // niente su iCloud, o errore
 
-      final localFile = File(localDbPath);
-      final localExists = await localFile.exists();
+      final localVersion = await _readLocalVersion(localVersionPath);
+      final localIsUpToDate =
+          localVersion != null && remoteVersion <= localVersion;
+      if (localIsUpToDate) return;
 
-      // Scarichiamo SEMPRE la copia remota (se esiste) in un file
-      // temporaneo, senza toccare quello vero: la confrontiamo con la
-      // copia locale leggendo un numero di versione salvato dentro il
-      // database stesso (più affidabile della data di modifica del
-      // file, che il sistema operativo può alterare per motivi che non
-      // c'entrano con i dati veri).
-      final tempFile = File('$localDbPath.icloud_tmp');
-      if (await tempFile.exists()) {
-        await tempFile.delete();
+      // Solo se il marcatore remoto è davvero più recente, scarichiamo
+      // anche il database vero (più pesante), lo validiamo, e solo
+      // allora lo mettiamo al posto di quello locale.
+      final tempDbFile = File('$localDbPath.icloud_tmp');
+      if (await tempDbFile.exists()) {
+        await tempDbFile.delete();
       }
+      await _downloadFile(_databaseFileName, tempDbFile.path);
 
-      await _downloadFile(tempFile.path);
-
-      final isValid = await _looksLikeValidDatabase(tempFile);
+      final isValid = await _looksLikeValidDatabase(tempDbFile);
       if (!isValid) {
-        await tempFile.delete().catchError((_) => tempFile);
+        await tempDbFile.delete().catchError((_) => tempDbFile);
         return;
       }
 
-      if (localExists) {
-        final remoteVersion = await _readDataVersion(tempFile.path);
-        final localVersion = await _readDataVersion(localDbPath);
-
-        final localIsUpToDate = localVersion != null &&
-            (remoteVersion == null || remoteVersion <= localVersion);
-
-        if (localIsUpToDate) {
-          await tempFile.delete().catchError((_) => tempFile);
-          return;
-        }
-
-        await localFile.delete();
+      final localDbFile = File(localDbPath);
+      if (await localDbFile.exists()) {
+        await localDbFile.delete();
       }
+      await tempDbFile.rename(localDbPath);
 
-      await tempFile.rename(localDbPath);
+      await File(localVersionPath).writeAsString('$remoteVersion');
     } catch (_) {
       // Silenzioso di proposito: l'app deve poter partire comunque.
     }
   }
 
-  // Legge il numero di versione salvato dentro un database (vedi
-  // DatabaseService.dataVersionSettingKey). Restituisce null se non è
-  // presente (es. database molto vecchio, da prima di questa modifica)
-  // o se il file non si riesce proprio a leggere.
-  static Future<int?> _readDataVersion(String dbPath) async {
+  // Scarica il marcatore di versione remoto (un piccolo file di testo)
+  // in un file temporaneo e ne legge il contenuto. Restituisce null se
+  // non esiste su iCloud o se qualcosa va storto.
+  static Future<int?> _fetchRemoteVersion(String localVersionPath) async {
+    final remoteFile = await _findRemoteFile(_versionFileName);
+    if (remoteFile == null) return null;
+
+    final tempVersionFile = File('$localVersionPath.icloud_tmp');
     try {
-      final db = await openReadOnlyDatabase(dbPath);
-      try {
-        final rows = await db.query(
-          'app_settings',
-          columns: ['setting_value'],
-          where: 'setting_key = ?',
-          whereArgs: ['data_updated_at'],
-          limit: 1,
-        );
-        if (rows.isEmpty) return null;
-        return int.tryParse(rows.first['setting_value'] as String? ?? '');
-      } finally {
-        await db.close();
+      if (await tempVersionFile.exists()) {
+        await tempVersionFile.delete();
       }
+      await _downloadFile(_versionFileName, tempVersionFile.path);
+      if (!await tempVersionFile.exists()) return null;
+
+      final content = await tempVersionFile.readAsString();
+      return int.tryParse(content.trim());
+    } finally {
+      if (await tempVersionFile.exists()) {
+        await tempVersionFile.delete().catchError((_) => tempVersionFile);
+      }
+    }
+  }
+
+  static Future<int?> _readLocalVersion(String localVersionPath) async {
+    try {
+      final file = File(localVersionPath);
+      if (!await file.exists()) return null;
+      return int.tryParse((await file.readAsString()).trim());
     } catch (_) {
       return null;
     }
   }
 
-  // Controllo "leggero" ma efficace: ogni file SQLite valido inizia
-  // sempre con la stessa firma di 16 byte. Non garantisce che il
-  // database sia perfetto al 100%, ma basta a scartare un download
-  // troncato o interrotto a metà, che è il caso più comune.
+  // Controllo di validità sul database appena scaricato: verifichiamo
+  // sia l'intestazione tipica di ogni file SQLite, sia che si riesca
+  // davvero ad aprirlo e leggerci qualcosa. Questo controllo avviene
+  // SOLO su un file temporaneo, mai sul percorso "vero" del database,
+  // proprio per non rischiare di intralciare l'apertura successiva.
   static Future<bool> _looksLikeValidDatabase(File file) async {
     try {
       if (!await file.exists()) return false;
@@ -127,12 +138,6 @@ class ICloudSyncService {
         return false;
       }
 
-      // Non ci fermiamo all'intestazione: a volte un file appena arrivato
-      // da iCloud supera questo controllo ma non è ancora del tutto
-      // "pronto" per essere letto davvero. Proviamo quindi ad aprirlo
-      // sul serio e a leggerci qualcosa, qui durante l'avvio (dove un
-      // piccolo ritardo passa inosservato), piuttosto che scoprirlo più
-      // tardi mentre l'utente sta già usando l'app.
       final testDb = await openReadOnlyDatabase(file.path);
       try {
         await testDb.rawQuery('SELECT count(*) FROM sqlite_master');
@@ -146,10 +151,11 @@ class ICloudSyncService {
     }
   }
 
-  /// Carica la copia locale del database su iCloud, sovrascrivendo
-  /// l'eventuale copia precedente.
+  /// Carica la copia locale del database (e il suo marcatore di
+  /// versione) su iCloud, sovrascrivendo l'eventuale copia precedente.
   ///
   /// [localDbPath] è il percorso locale del file del database.
+  /// [localVersionPath] è il percorso locale del marcatore di versione.
   ///
   /// Da chiamare subito dopo ogni scrittura importante (mentre l'app è
   /// ancora in primo piano: aspettare che l'utente esca dall'app è troppo
@@ -157,64 +163,82 @@ class ICloudSyncService {
   /// rete di sicurezza aggiuntiva, anche quando l'app va in background.
   ///
   /// Non lancia mai eccezioni, per lo stesso motivo di [downloadIfNewer].
-  static Future<void> uploadDatabase(String localDbPath) async {
+  static Future<void> uploadDatabase(
+    String localDbPath,
+    String localVersionPath,
+  ) async {
     if (!_isSupportedPlatform) return;
 
     try {
-      final localFile = File(localDbPath);
-      if (!await localFile.exists()) return;
+      final localDbFile = File(localDbPath);
+      if (!await localDbFile.exists()) return;
 
-      try {
-        await ICloudStorage.delete(
-          containerId: containerId,
-          relativePath: _databaseFileName,
-        );
-      } catch (_) {
-        // Va bene anche se il file non esisteva ancora su iCloud.
+      await _deleteThenUpload(_databaseFileName, localDbPath);
+
+      final localVersionFile = File(localVersionPath);
+      if (await localVersionFile.exists()) {
+        await _deleteThenUpload(_versionFileName, localVersionPath);
       }
-
-      final completer = Completer<void>();
-      await ICloudStorage.upload(
-        containerId: containerId,
-        filePath: localDbPath,
-        destinationRelativePath: _databaseFileName,
-        onProgress: (stream) {
-          stream.listen(
-            (_) {},
-            onDone: () {
-              if (!completer.isCompleted) completer.complete();
-            },
-            onError: (_) {
-              if (!completer.isCompleted) completer.complete();
-            },
-            cancelOnError: true,
-          );
-        },
-      );
-      await completer.future.timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {},
-      );
     } catch (_) {
       // Silenzioso di proposito, vedi downloadIfNewer.
     }
   }
 
-  static Future<ICloudFile?> _findRemoteDatabaseFile() async {
+  static Future<void> _deleteThenUpload(
+    String relativePath,
+    String localPath,
+  ) async {
+    try {
+      await ICloudStorage.delete(
+        containerId: containerId,
+        relativePath: relativePath,
+      );
+    } catch (_) {
+      // Va bene anche se il file non esisteva ancora su iCloud.
+    }
+
+    final completer = Completer<void>();
+    await ICloudStorage.upload(
+      containerId: containerId,
+      filePath: localPath,
+      destinationRelativePath: relativePath,
+      onProgress: (stream) {
+        stream.listen(
+          (_) {},
+          onDone: () {
+            if (!completer.isCompleted) completer.complete();
+          },
+          onError: (_) {
+            if (!completer.isCompleted) completer.complete();
+          },
+          cancelOnError: true,
+        );
+      },
+    );
+    await completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {},
+    );
+  }
+
+  static Future<ICloudFile?> _findRemoteFile(String relativePath) async {
     final files = await ICloudStorage.gather(containerId: containerId);
     for (final file in files) {
-      if (file.relativePath == _databaseFileName) {
+      if (file.relativePath == relativePath) {
         return file;
       }
     }
     return null;
   }
 
-  static Future<void> _downloadFile(String destinationPath) async {
+  static Future<void> _downloadFile(
+    String relativePath,
+    String destinationPath,
+  ) async {
     final completer = Completer<void>();
     await ICloudStorage.download(
       containerId: containerId,
-      relativePath: _databaseFileName,
+      relativePath: relativePath,
       destinationFilePath: destinationPath,
       onProgress: (stream) {
         stream.listen(

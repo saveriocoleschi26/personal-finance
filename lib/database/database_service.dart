@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -702,21 +703,30 @@ class DatabaseService {
     return result;
   }
 
+  // Restituisce il percorso locale del piccolo file "marcatore di
+  // versione" usato dal servizio di sincronizzazione iCloud per capire,
+  // in modo rapido e senza aprire il database, quale copia tra locale e
+  // remota sia più recente.
+  Future<String> getDataVersionFilePath() async {
+    final databasePath = await getDatabasesPath();
+    return join(databasePath, 'personal_finance.version');
+  }
+
   // Piccolo helper per non ripetere "prendi il percorso, poi carica" in
   // ogni singolo metodo di scrittura.
   Future<void> _syncToICloud() async {
-    // Aggiorniamo il "numero di versione" salvato dentro il database
-    // PRIMA di caricarlo: è così che gli altri dispositivi capiscono, in
-    // modo affidabile, se questa copia è più recente della loro (la data
-    // di modifica del file da sola non basta, può essere alterata da
-    // operazioni del sistema operativo che non c'entrano con i dati).
-    await setSetting(
-      dataVersionSettingKey,
-      DateTime.now().millisecondsSinceEpoch.toString(),
-    );
+    // Aggiorniamo il "numero di versione" (qui e nel piccolo file
+    // separato) PRIMA di caricare: è così che gli altri dispositivi
+    // capiscono, in modo affidabile e veloce, se questa copia è più
+    // recente della loro.
+    final now = DateTime.now().millisecondsSinceEpoch.toString();
+    await setSetting(dataVersionSettingKey, now);
 
-    final path = await getDatabaseFilePath();
-    await ICloudSyncService.uploadDatabase(path);
+    final dbPath = await getDatabaseFilePath();
+    final versionPath = await getDataVersionFilePath();
+    await File(versionPath).writeAsString(now);
+
+    await ICloudSyncService.uploadDatabase(dbPath, versionPath);
   }
 
   // =====================================================

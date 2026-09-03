@@ -18,7 +18,8 @@ Future<void> main() async {
   // il database. In caso di problemi con iCloud l'app parte comunque
   // normalmente con i dati locali.
   final dbPath = await DatabaseService.instance.getDatabaseFilePath();
-  await ICloudSyncService.downloadIfNewer(dbPath);
+  final versionPath = await DatabaseService.instance.getDataVersionFilePath();
+  await ICloudSyncService.downloadIfNewer(dbPath, versionPath);
   runApp(const PersonalFinanceApp());
 }
 
@@ -53,9 +54,12 @@ class _PersonalFinanceAppState extends State<PersonalFinanceApp>
     // rischiava di intralciare la lettura dei dati se l'utente tornava
     // subito indietro nell'app.
     if (state == AppLifecycleState.paused) {
-      DatabaseService.instance.getDatabaseFilePath().then(
-            (path) => ICloudSyncService.uploadDatabase(path),
-          );
+      Future(() async {
+        final path = await DatabaseService.instance.getDatabaseFilePath();
+        final versionPath =
+            await DatabaseService.instance.getDataVersionFilePath();
+        await ICloudSyncService.uploadDatabase(path, versionPath);
+      });
     }
   }
 
