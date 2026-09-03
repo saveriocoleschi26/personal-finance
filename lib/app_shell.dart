@@ -66,6 +66,13 @@ class _AppShellState extends State<AppShell> {
         builder: (context) => const OnboardingPage(),
       ),
     );
+
+    // Quando si chiude la guida (con "Salta" o arrivando alla fine),
+    // ricarichiamo i dati della Home: se il database era ancora in fase
+    // di sincronizzazione da un altro dispositivo quando la Home si è
+    // caricata la prima volta, questo evita che resti con dati vecchi o
+    // vuoti finché l'utente non riavvia l'app da sé.
+    notifyDataChanged();
   }
 
   @override
