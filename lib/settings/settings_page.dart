@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../categories/categories_page.dart';
 import '../cloud_sync/icloud_sync_service.dart';
 import '../currency/app_currency.dart';
+import '../database/database_service.dart';
 import '../localization/app_language.dart';
 import '../onboarding/onboarding_page.dart';
 import '../security/biometric_security.dart';
@@ -71,7 +72,8 @@ class _SettingsPageState extends State<SettingsPage> {
       _syncingNow = true;
     });
 
-    await ICloudSyncService.uploadDatabase();
+    final dbPath = await DatabaseService.instance.getDatabaseFilePath();
+    await ICloudSyncService.uploadDatabase(dbPath);
 
     if (!mounted) return;
     setState(() {

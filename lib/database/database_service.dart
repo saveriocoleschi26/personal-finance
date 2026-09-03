@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../annual_expenses/annual_expense.dart';
 import '../categories/expense_category.dart';
+import '../cloud_sync/icloud_sync_service.dart';
 import '../monthly_carryover/monthly_balance_calculator.dart';
 import '../planned_expenses/planned_expense.dart';
 import '../recurring_expenses/recurring_expense.dart';
@@ -560,10 +563,17 @@ class DatabaseService {
   ) async {
     final db = await database;
 
-    return db.insert(
+    final id = await db.insert(
       'transactions',
       transaction.toMap(),
     );
+
+    // Carichiamo subito la copia aggiornata su iCloud, mentre l'app è
+    // ancora in primo piano: aspettare che l'utente esca dall'app è
+    // troppo rischioso, iOS potrebbe interrompere il caricamento a metà.
+    unawaited(_syncToICloud());
+
+    return id;
   }
 
   Future<List<FinanceTransaction>> getTransactions() async {
@@ -636,7 +646,7 @@ class DatabaseService {
   Future<int> deleteTransaction(int id) async {
     final db = await database;
 
-    return db.transaction((txn) async {
+    final result = await db.transaction((txn) async {
       await txn.update(
         'annual_expenses',
         {
@@ -663,6 +673,10 @@ class DatabaseService {
         whereArgs: [id],
       );
     });
+
+    unawaited(_syncToICloud());
+
+    return result;
   }
 
   Future<int> updateTransaction(
@@ -670,12 +684,23 @@ class DatabaseService {
   ) async {
     final db = await database;
 
-    return db.update(
+    final result = await db.update(
       'transactions',
       transaction.toMap(),
       where: 'id = ?',
       whereArgs: [transaction.id],
     );
+
+    unawaited(_syncToICloud());
+
+    return result;
+  }
+
+  // Piccolo helper per non ripetere "prendi il percorso, poi carica" in
+  // ogni singolo metodo di scrittura.
+  Future<void> _syncToICloud() async {
+    final path = await getDatabaseFilePath();
+    await ICloudSyncService.uploadDatabase(path);
   }
 
   // =====================================================

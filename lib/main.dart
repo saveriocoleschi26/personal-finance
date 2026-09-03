@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_shell.dart';
 import 'cloud_sync/icloud_sync_service.dart';
 import 'currency/app_currency.dart';
+import 'database/database_service.dart';
 import 'localization/app_language.dart';
 import 'security/biometric_gate.dart';
 import 'security/biometric_security.dart';
@@ -16,7 +17,8 @@ Future<void> main() async {
   // (es. aggiunta da un altro dispositivo), la scarichiamo PRIMA di aprire
   // il database. In caso di problemi con iCloud l'app parte comunque
   // normalmente con i dati locali.
-  await ICloudSyncService.downloadIfNewer();
+  final dbPath = await DatabaseService.instance.getDatabaseFilePath();
+  await ICloudSyncService.downloadIfNewer(dbPath);
   runApp(const PersonalFinanceApp());
 }
 
@@ -43,12 +45,16 @@ class _PersonalFinanceAppState extends State<PersonalFinanceApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Quando l'utente esce dall'app (per chiuderla o passare a un'altra
-    // app) carichiamo la copia aggiornata del database su iCloud, così
-    // sarà disponibile sugli altri dispositivi alla prossima apertura.
+    // Rete di sicurezza aggiuntiva: il caricamento "vero" avviene subito
+    // dopo ogni scrittura (vedi DatabaseService), mentre l'app è ancora
+    // in primo piano. Questo secondo tentativo qui probabilmente non fa
+    // in tempo a completarsi prima che iOS sospenda l'app, ma non costa
+    // nulla lasciarlo come ulteriore tentativo.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      ICloudSyncService.uploadDatabase();
+      DatabaseService.instance.getDatabaseFilePath().then(
+            (path) => ICloudSyncService.uploadDatabase(path),
+          );
     }
   }
 

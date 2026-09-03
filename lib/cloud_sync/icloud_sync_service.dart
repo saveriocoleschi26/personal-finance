@@ -3,7 +3,11 @@ import 'dart:io';
 
 import 'package:icloud_storage/icloud_storage.dart';
 
-import '../database/database_service.dart';
+/// Nome del file del database, condiviso con DatabaseService.
+/// Tenuto qui (invece di importare database_service.dart) per evitare
+/// un riferimento circolare tra i due file, dato che DatabaseService
+/// chiama questo servizio dopo ogni scrittura.
+const String _databaseFileName = 'personal_finance.db';
 
 /// Gestisce la sincronizzazione del database locale (sqflite) con iCloud,
 /// così da poter usare Liblo su più dispositivi Apple con gli stessi dati.
@@ -25,19 +29,19 @@ class ICloudSyncService {
   /// database locale. Se su iCloud esiste una copia più recente di
   /// quella locale, la scarica e sostituisce il file locale.
   ///
+  /// [localDbPath] è il percorso locale del file del database.
+  ///
   /// Non lancia mai eccezioni: se qualcosa va storto (iCloud non
   /// disponibile, utente non loggato, nessuna connessione...) l'app deve
   /// comunque poter partire e funzionare normalmente in locale.
-  static Future<void> downloadIfNewer() async {
+  static Future<void> downloadIfNewer(String localDbPath) async {
     if (!_isSupportedPlatform) return;
 
     try {
-      final localPath =
-          await DatabaseService.instance.getDatabaseFilePath();
       final remoteFile = await _findRemoteDatabaseFile();
       if (remoteFile == null) return;
 
-      final localFile = File(localPath);
+      final localFile = File(localDbPath);
       final localExists = await localFile.exists();
       final localModified =
           localExists ? await localFile.lastModified() : null;
@@ -50,30 +54,34 @@ class ICloudSyncService {
         await localFile.delete();
       }
 
-      await _downloadFile(localPath);
+      await _downloadFile(localDbPath);
     } catch (_) {
       // Silenzioso di proposito: l'app deve poter partire comunque.
     }
   }
 
   /// Carica la copia locale del database su iCloud, sovrascrivendo
-  /// l'eventuale copia precedente. Da chiamare dopo scritture importanti
-  /// e/o quando l'app va in background.
+  /// l'eventuale copia precedente.
+  ///
+  /// [localDbPath] è il percorso locale del file del database.
+  ///
+  /// Da chiamare subito dopo ogni scrittura importante (mentre l'app è
+  /// ancora in primo piano: aspettare che l'utente esca dall'app è troppo
+  /// rischioso, iOS potrebbe interrompere il caricamento a metà) e, come
+  /// rete di sicurezza aggiuntiva, anche quando l'app va in background.
   ///
   /// Non lancia mai eccezioni, per lo stesso motivo di [downloadIfNewer].
-  static Future<void> uploadDatabase() async {
+  static Future<void> uploadDatabase(String localDbPath) async {
     if (!_isSupportedPlatform) return;
 
     try {
-      final localPath =
-          await DatabaseService.instance.getDatabaseFilePath();
-      final localFile = File(localPath);
+      final localFile = File(localDbPath);
       if (!await localFile.exists()) return;
 
       try {
         await ICloudStorage.delete(
           containerId: containerId,
-          relativePath: DatabaseService.databaseFileName,
+          relativePath: _databaseFileName,
         );
       } catch (_) {
         // Va bene anche se il file non esisteva ancora su iCloud.
@@ -82,8 +90,8 @@ class ICloudSyncService {
       final completer = Completer<void>();
       await ICloudStorage.upload(
         containerId: containerId,
-        filePath: localPath,
-        destinationRelativePath: DatabaseService.databaseFileName,
+        filePath: localDbPath,
+        destinationRelativePath: _databaseFileName,
         onProgress: (stream) {
           stream.listen(
             (_) {},
@@ -109,7 +117,7 @@ class ICloudSyncService {
   static Future<ICloudFile?> _findRemoteDatabaseFile() async {
     final files = await ICloudStorage.gather(containerId: containerId);
     for (final file in files) {
-      if (file.relativePath == DatabaseService.databaseFileName) {
+      if (file.relativePath == _databaseFileName) {
         return file;
       }
     }
@@ -120,7 +128,7 @@ class ICloudSyncService {
     final completer = Completer<void>();
     await ICloudStorage.download(
       containerId: containerId,
-      relativePath: DatabaseService.databaseFileName,
+      relativePath: _databaseFileName,
       destinationFilePath: destinationPath,
       onProgress: (stream) {
         stream.listen(
