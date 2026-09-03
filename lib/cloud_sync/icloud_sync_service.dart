@@ -50,13 +50,48 @@ class ICloudSyncService {
           remoteFile.contentChangeDate.isAfter(localModified);
       if (!remoteIsNewer) return;
 
+      // Scarichiamo PRIMA in un file temporaneo, senza toccare quello
+      // vero: se il download dovesse risultare incompleto o corrotto
+      // (es. connessione instabile), è molto meglio tenere la copia
+      // locale che funziona piuttosto che sostituirla con una rotta.
+      final tempFile = File('$localDbPath.icloud_tmp');
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+
+      await _downloadFile(tempFile.path);
+
+      final isValid = await _looksLikeValidDatabase(tempFile);
+      if (!isValid) {
+        await tempFile.delete().catchError((_) => tempFile);
+        return;
+      }
+
       if (localExists) {
         await localFile.delete();
       }
-
-      await _downloadFile(localDbPath);
+      await tempFile.rename(localDbPath);
     } catch (_) {
       // Silenzioso di proposito: l'app deve poter partire comunque.
+    }
+  }
+
+  // Controllo "leggero" ma efficace: ogni file SQLite valido inizia
+  // sempre con la stessa firma di 16 byte. Non garantisce che il
+  // database sia perfetto al 100%, ma basta a scartare un download
+  // troncato o interrotto a metà, che è il caso più comune.
+  static Future<bool> _looksLikeValidDatabase(File file) async {
+    try {
+      if (!await file.exists()) return false;
+      if (await file.length() < 100) return false;
+
+      final handle = await file.open();
+      final header = await handle.read(16);
+      await handle.close();
+
+      return String.fromCharCodes(header).startsWith('SQLite format 3');
+    } catch (_) {
+      return false;
     }
   }
 

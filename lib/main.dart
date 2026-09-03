@@ -47,11 +47,12 @@ class _PersonalFinanceAppState extends State<PersonalFinanceApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Rete di sicurezza aggiuntiva: il caricamento "vero" avviene subito
     // dopo ogni scrittura (vedi DatabaseService), mentre l'app è ancora
-    // in primo piano. Questo secondo tentativo qui probabilmente non fa
-    // in tempo a completarsi prima che iOS sospenda l'app, ma non costa
-    // nulla lasciarlo come ulteriore tentativo.
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    // in primo piano. Usiamo solo "paused" (app davvero in background) e
+    // non "inactive": quest'ultimo scatta anche solo per il gesto rapido
+    // di cambio app, e avviare un caricamento proprio in quel momento
+    // rischiava di intralciare la lettura dei dati se l'utente tornava
+    // subito indietro nell'app.
+    if (state == AppLifecycleState.paused) {
       DatabaseService.instance.getDatabaseFilePath().then(
             (path) => ICloudSyncService.uploadDatabase(path),
           );

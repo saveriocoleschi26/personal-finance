@@ -44,6 +44,7 @@ class _HomePageState extends State<HomePage>
 
   int touchedCategoryIndex = -1;
   bool isLoading = true;
+  bool hasLoadError = false;
   bool showAllTransactions = false;
   bool _skipNextExternalRefresh = false;
   Timer? _monthBoundaryTimer;
@@ -237,49 +238,77 @@ class _HomePageState extends State<HomePage>
   Future<void> loadSelectedMonthData() async {
     final monthToLoad = selectedMonth;
 
-    // Avviamo le letture insieme: SQLite le gestisce in modo sicuro e
-    // la Home non aspetta le operazioni una dopo l'altra.
-    final database = DatabaseService.instance;
-    final transactionsFuture = database.getTransactionsForMonth(monthToLoad);
-    final budgetFuture = database.getMonthlyBudget(monthToLoad);
-    final carryoverFuture = database.getMonthlyCarryover(monthToLoad);
-    final annualExpensesFuture = database.getAnnualExpenses();
-    final plannedExpensesFuture =
-        database.getPlannedExpensesForMonth(monthToLoad);
-    final categoriesFuture = database.getCategories(includeInactive: true);
-    final hasAnyTransactionsFuture = database.hasAnyTransactions();
+    try {
+      // Avviamo le letture insieme: SQLite le gestisce in modo sicuro e
+      // la Home non aspetta le operazioni una dopo l'altra.
+      final database = DatabaseService.instance;
+      final transactionsFuture =
+          database.getTransactionsForMonth(monthToLoad);
+      final budgetFuture = database.getMonthlyBudget(monthToLoad);
+      final carryoverFuture = database.getMonthlyCarryover(monthToLoad);
+      final annualExpensesFuture = database.getAnnualExpenses();
+      final plannedExpensesFuture =
+          database.getPlannedExpensesForMonth(monthToLoad);
+      final categoriesFuture = database.getCategories(includeInactive: true);
+      final hasAnyTransactionsFuture = database.hasAnyTransactions();
 
-    final savedTransactions = await transactionsFuture;
-    final savedBudget = await budgetFuture;
-    final savedCarryover = await carryoverFuture;
-    final savedAnnualExpenses = await annualExpensesFuture;
-    final savedPlannedExpenses = await plannedExpensesFuture;
-    final savedCategories = await categoriesFuture;
-    final savedHasAnyTransactions = await hasAnyTransactionsFuture;
+      final savedTransactions = await transactionsFuture.timeout(
+        const Duration(seconds: 8),
+      );
+      final savedBudget = await budgetFuture.timeout(
+        const Duration(seconds: 8),
+      );
+      final savedCarryover = await carryoverFuture.timeout(
+        const Duration(seconds: 8),
+      );
+      final savedAnnualExpenses = await annualExpensesFuture.timeout(
+        const Duration(seconds: 8),
+      );
+      final savedPlannedExpenses = await plannedExpensesFuture.timeout(
+        const Duration(seconds: 8),
+      );
+      final savedCategories = await categoriesFuture.timeout(
+        const Duration(seconds: 8),
+      );
+      final savedHasAnyTransactions = await hasAnyTransactionsFuture.timeout(
+        const Duration(seconds: 8),
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (selectedMonth.year != monthToLoad.year ||
-        selectedMonth.month != monthToLoad.month) {
-      return;
+      if (selectedMonth.year != monthToLoad.year ||
+          selectedMonth.month != monthToLoad.month) {
+        return;
+      }
+
+      setState(() {
+        transactions.clear();
+        transactions.addAll(savedTransactions);
+
+        savingsGoal = savedBudget['savingsGoal'] ?? 0;
+        monthlyCarryover = savedCarryover;
+        annualExpenses = savedAnnualExpenses;
+        monthlyPlannedExpenses = savedPlannedExpenses;
+        _categoriesByName = {
+          for (final category in savedCategories) category.name: category,
+        };
+        hasAnyTransactionsEver = savedHasAnyTransactions;
+
+        touchedCategoryIndex = -1;
+        hasLoadError = false;
+        isLoading = false;
+      });
+    } catch (_) {
+      // Qualunque cosa vada storta nella lettura (database inaccessibile,
+      // file incompleto, ecc.), la schermata non deve restare bloccata sul
+      // caricamento: mostriamo uno stato di errore con un modo per
+      // riprovare, invece di uno spinner infinito.
+      if (!mounted) return;
+      setState(() {
+        hasLoadError = true;
+        isLoading = false;
+      });
     }
-
-    setState(() {
-      transactions.clear();
-      transactions.addAll(savedTransactions);
-
-      savingsGoal = savedBudget['savingsGoal'] ?? 0;
-      monthlyCarryover = savedCarryover;
-      annualExpenses = savedAnnualExpenses;
-      monthlyPlannedExpenses = savedPlannedExpenses;
-      _categoriesByName = {
-        for (final category in savedCategories) category.name: category,
-      };
-      hasAnyTransactionsEver = savedHasAnyTransactions;
-
-      touchedCategoryIndex = -1;
-      isLoading = false;
-    });
   }
 
   double get totalIncome {
@@ -1105,6 +1134,57 @@ class _HomePageState extends State<HomePage>
                 height: 480,
                 child: Center(
                   child: CircularProgressIndicator(),
+                ),
+              )
+            else if (hasLoadError)
+              SizedBox(
+                height: 480,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.cloud_off_rounded,
+                          size: 40,
+                          color: Color(0xFF899694),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          l('Non riesco a caricare i tuoi dati'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          le(
+                            'Può essere un problema temporaneo, ad esempio durante la sincronizzazione con iCloud. Riprova tra poco.',
+                            'This might be a temporary issue, for example during iCloud sync. Try again shortly.',
+                          ),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF7E8B89),
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        FilledButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              isLoading = true;
+                            });
+                            loadSelectedMonthData();
+                          },
+                          icon: const Icon(Icons.refresh_rounded, size: 20),
+                          label: Text(l('Riprova')),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               )
             else ...[

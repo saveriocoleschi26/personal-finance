@@ -296,6 +296,8 @@ const Map<String, String> _english = {
   'Quando aggiungi spese o scegli dei soldi da mettere da parte, vedrai qui come sono distribuiti.':
       'When you add expenses or set money aside, you will see how it is distributed here.',
   'Nessun movimento': 'No transactions',
+  'Non riesco a caricare i tuoi dati': 'I can\'t load your data',
+  'Riprova': 'Try again',
   'Nessun movimento registrato per questo mese.':
       'No transactions recorded for this month.',
   'Inserisci il tuo primo movimento': 'Add your first transaction',
