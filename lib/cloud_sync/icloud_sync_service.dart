@@ -44,17 +44,13 @@ class ICloudSyncService {
 
       final localFile = File(localDbPath);
       final localExists = await localFile.exists();
-      final localModified =
-          localExists ? await localFile.lastModified() : null;
 
-      final remoteIsNewer = localModified == null ||
-          remoteFile.contentChangeDate.isAfter(localModified);
-      if (!remoteIsNewer) return;
-
-      // Scarichiamo PRIMA in un file temporaneo, senza toccare quello
-      // vero: se il download dovesse risultare incompleto o corrotto
-      // (es. connessione instabile), è molto meglio tenere la copia
-      // locale che funziona piuttosto che sostituirla con una rotta.
+      // Scarichiamo SEMPRE la copia remota (se esiste) in un file
+      // temporaneo, senza toccare quello vero: la confrontiamo con la
+      // copia locale leggendo un numero di versione salvato dentro il
+      // database stesso (più affidabile della data di modifica del
+      // file, che il sistema operativo può alterare per motivi che non
+      // c'entrano con i dati veri).
       final tempFile = File('$localDbPath.icloud_tmp');
       if (await tempFile.exists()) {
         await tempFile.delete();
@@ -69,11 +65,48 @@ class ICloudSyncService {
       }
 
       if (localExists) {
+        final remoteVersion = await _readDataVersion(tempFile.path);
+        final localVersion = await _readDataVersion(localDbPath);
+
+        final localIsUpToDate = localVersion != null &&
+            (remoteVersion == null || remoteVersion <= localVersion);
+
+        if (localIsUpToDate) {
+          await tempFile.delete().catchError((_) => tempFile);
+          return;
+        }
+
         await localFile.delete();
       }
+
       await tempFile.rename(localDbPath);
     } catch (_) {
       // Silenzioso di proposito: l'app deve poter partire comunque.
+    }
+  }
+
+  // Legge il numero di versione salvato dentro un database (vedi
+  // DatabaseService.dataVersionSettingKey). Restituisce null se non è
+  // presente (es. database molto vecchio, da prima di questa modifica)
+  // o se il file non si riesce proprio a leggere.
+  static Future<int?> _readDataVersion(String dbPath) async {
+    try {
+      final db = await openReadOnlyDatabase(dbPath);
+      try {
+        final rows = await db.query(
+          'app_settings',
+          columns: ['setting_value'],
+          where: 'setting_key = ?',
+          whereArgs: ['data_updated_at'],
+          limit: 1,
+        );
+        if (rows.isEmpty) return null;
+        return int.tryParse(rows.first['setting_value'] as String? ?? '');
+      } finally {
+        await db.close();
+      }
+    } catch (_) {
+      return null;
     }
   }
 

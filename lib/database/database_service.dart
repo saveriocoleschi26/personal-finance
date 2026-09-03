@@ -29,6 +29,12 @@ class DatabaseService {
   // sincronizzazione iCloud per sapere quale file caricare/scaricare.
   static const String databaseFileName = 'personal_finance.db';
 
+  // Chiave dell'impostazione che tiene traccia di quando i dati sono
+  // stati modificati l'ultima volta, usata dal servizio di
+  // sincronizzazione iCloud per capire quale copia (locale o remota) è
+  // davvero più recente.
+  static const String dataVersionSettingKey = 'data_updated_at';
+
   // Restituisce il percorso locale del file del database SENZA aprirlo.
   // Serve al servizio di sincronizzazione iCloud, che deve poter
   // scaricare l'eventuale copia più recente PRIMA che il database
@@ -699,6 +705,16 @@ class DatabaseService {
   // Piccolo helper per non ripetere "prendi il percorso, poi carica" in
   // ogni singolo metodo di scrittura.
   Future<void> _syncToICloud() async {
+    // Aggiorniamo il "numero di versione" salvato dentro il database
+    // PRIMA di caricarlo: è così che gli altri dispositivi capiscono, in
+    // modo affidabile, se questa copia è più recente della loro (la data
+    // di modifica del file da sola non basta, può essere alterata da
+    // operazioni del sistema operativo che non c'entrano con i dati).
+    await setSetting(
+      dataVersionSettingKey,
+      DateTime.now().millisecondsSinceEpoch.toString(),
+    );
+
     final path = await getDatabaseFilePath();
     await ICloudSyncService.uploadDatabase(path);
   }
