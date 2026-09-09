@@ -594,6 +594,30 @@ class DatabaseService {
     return maps.map(FinanceTransaction.fromMap).toList();
   }
 
+  // Cerca tra TUTTI i movimenti (non solo quelli del mese corrente),
+  // per descrizione o categoria. Usata dalla barra di ricerca nello
+  // storico. Limitiamo i risultati per non caricare in memoria uno
+  // storico enorme tutto insieme se la ricerca è troppo generica.
+  Future<List<FinanceTransaction>> searchTransactions(
+    String query,
+  ) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    final db = await database;
+    final likePattern = '%$trimmed%';
+
+    final maps = await db.query(
+      'transactions',
+      where: 'description LIKE ? OR category LIKE ?',
+      whereArgs: [likePattern, likePattern],
+      orderBy: 'date DESC',
+      limit: 200,
+    );
+
+    return maps.map(FinanceTransaction.fromMap).toList();
+  }
+
   // Usato per distinguere un mese "vuoto perché l'utente non ha ancora
   // registrato nulla" da un mese "vuoto perché non ci sono movimenti in
   // questo periodo", cosicché la Home possa mostrare il messaggio di

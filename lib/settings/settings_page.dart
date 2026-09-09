@@ -9,6 +9,7 @@ import '../database/database_service.dart';
 import '../localization/app_language.dart';
 import '../onboarding/onboarding_page.dart';
 import '../security/biometric_security.dart';
+import '../theme/app_theme_controller.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -107,6 +108,17 @@ class _SettingsPageState extends State<SettingsPage> {
             ? l('Italiano')
             : l('Inglese');
         return '${l('Automatico')} · $detected';
+    }
+  }
+
+  String _themeSubtitle() {
+    switch (AppThemeController.instance.themeMode) {
+      case ThemeMode.light:
+        return l('Chiaro');
+      case ThemeMode.dark:
+        return l('Scuro');
+      case ThemeMode.system:
+        return l('Automatico');
     }
   }
 
@@ -254,6 +266,31 @@ class _SettingsPageState extends State<SettingsPage> {
                         builder: (context) => const CategoriesPage(),
                       ),
                     );
+                  },
+                ),
+                const Divider(height: 1, indent: 70),
+                ListTile(
+                  leading: _SettingsIcon(
+                    icon: Icons.dark_mode_outlined,
+                    color: colors.primary,
+                    background: colors.primaryContainer,
+                  ),
+                  title: Text(
+                    l('Aspetto'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(_themeSubtitle()),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ThemeSettingsPage(),
+                      ),
+                    );
+                    if (mounted) setState(() {});
                   },
                 ),
                 const Divider(height: 1, indent: 70),
@@ -531,6 +568,89 @@ class _LanguageSettingsPageState extends State<LanguageSettingsPage> {
   }
 }
 
+class ThemeSettingsPage extends StatefulWidget {
+  const ThemeSettingsPage({super.key});
+
+  @override
+  State<ThemeSettingsPage> createState() => _ThemeSettingsPageState();
+}
+
+class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
+  Future<void> _changeTheme(ThemeMode mode) async {
+    await AppThemeController.instance.setThemeMode(mode);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = AppThemeController.instance;
+    final colors = Theme.of(context).colorScheme;
+
+    Widget themeOption({
+      required ThemeMode value,
+      required String title,
+      String? subtitle,
+    }) {
+      final selected = controller.themeMode == value;
+
+      return ListTile(
+        onTap: () => _changeTheme(value),
+        leading: Icon(
+          selected
+              ? Icons.radio_button_checked
+              : Icons.radio_button_unchecked,
+          color: selected ? colors.primary : colors.onSurfaceVariant,
+        ),
+        title: Text(title),
+        subtitle: subtitle == null ? null : Text(subtitle),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l('Aspetto')),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        children: [
+          Text(
+            l('Scegli come deve apparire Liblo'),
+            style: TextStyle(
+              fontSize: 13,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
+            child: Column(
+              children: [
+                themeOption(
+                  value: ThemeMode.system,
+                  title: l('Automatico'),
+                  subtitle: le(
+                    'Segue l\'aspetto del sistema (anche se lo hai impostato per cambiare da solo con l\'orario)',
+                    'Follows the system appearance (even if you\'ve set it to switch automatically with the time of day)',
+                  ),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                themeOption(
+                  value: ThemeMode.light,
+                  title: l('Chiaro'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                themeOption(
+                  value: ThemeMode.dark,
+                  title: l('Scuro'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class CurrencySettingsPage extends StatefulWidget {
   const CurrencySettingsPage({super.key});
 
@@ -625,12 +745,14 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFE9EAF0),
+          color: colors.outlineVariant,
         ),
       ),
       child: child,

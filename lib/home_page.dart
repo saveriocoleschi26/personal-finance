@@ -19,6 +19,58 @@ enum TransactionAction {
   delete,
 }
 
+// Tutti i colori della Home che devono cambiare tra tema chiaro e scuro,
+// raccolti in un unico posto. I colori delle categorie (icone, sfondi
+// pastello) restano invariati nei due temi, quindi non sono qui dentro.
+class HomeColors {
+  final bool isDark;
+
+  const HomeColors._(this.isDark);
+
+  factory HomeColors.of(BuildContext context) {
+    return HomeColors._(Theme.of(context).brightness == Brightness.dark);
+  }
+
+  Color get cardBackground =>
+      isDark ? const Color(0xFF16221F) : Colors.white;
+  Color get pageBackground =>
+      isDark ? const Color(0xFF0E1917) : const Color(0xFFF7FAF9);
+  Color get textPrimary =>
+      isDark ? const Color(0xFFF2F5F4) : const Color(0xFF14263A);
+  Color get textPrimaryAlt =>
+      isDark ? const Color(0xFFF2F5F4) : const Color(0xFF17282D);
+  Color get textPrimaryStrong =>
+      isDark ? const Color(0xFFF2F5F4) : const Color(0xFF1F2D31);
+  Color get textPrimaryDeep =>
+      isDark ? const Color(0xFFF2F5F4) : const Color(0xFF1F3034);
+  Color get textSecondary =>
+      isDark ? const Color(0xFF8FA39D) : const Color(0xFF7E8B89);
+  Color get textSecondaryAlt =>
+      isDark ? const Color(0xFF8FA39D) : const Color(0xFF899694);
+  Color get textSecondaryDim =>
+      isDark ? const Color(0xFF7C908A) : const Color(0xFF8A9694);
+  Color get textMuted =>
+      isDark ? const Color(0xFF7C908A) : const Color(0xFF7A8986);
+  Color get textMutedAlt =>
+      isDark ? const Color(0xFF7C908A) : const Color(0xFF73807E);
+  Color get iconMuted =>
+      isDark ? const Color(0xFF7C908A) : const Color(0xFF667370);
+  Color get border =>
+      isDark ? const Color(0xFF223532) : const Color(0xFFE9EEEC);
+  Color get borderAlt =>
+      isDark ? const Color(0xFF223532) : const Color(0xFFE7ECEB);
+  Color get divider =>
+      isDark ? const Color(0xFF223532) : const Color(0xFFEDF0EF);
+  Color get mutedFill =>
+      isDark ? const Color(0xFF26363A) : const Color(0xFFCAD2D0);
+  Color get teal =>
+      isDark ? const Color(0xFF1FBF95) : const Color(0xFF0B8D86);
+  Color get tealDeep =>
+      isDark ? const Color(0xFF19A483) : const Color(0xFF087F79);
+  Color get green =>
+      isDark ? const Color(0xFF34D399) : const Color(0xFF119B6B);
+}
+
 class HomePage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
   final VoidCallback onDataChanged;
@@ -49,6 +101,12 @@ class _HomePageState extends State<HomePage>
   bool _skipNextExternalRefresh = false;
   Timer? _monthBoundaryTimer;
 
+  bool isSearching = false;
+  final TextEditingController searchController = TextEditingController();
+  List<FinanceTransaction> searchResults = [];
+  bool searchLoading = false;
+  Timer? _searchDebounce;
+
   Map<String, ExpenseCategory> _categoriesByName = {};
 
   late DateTime selectedMonth;
@@ -78,6 +136,8 @@ class _HomePageState extends State<HomePage>
   @override
   void dispose() {
     _monthBoundaryTimer?.cancel();
+    _searchDebounce?.cancel();
+    searchController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     widget.refreshNotifier.removeListener(_externalRefresh);
     super.dispose();
@@ -146,6 +206,49 @@ class _HomePageState extends State<HomePage>
     }
 
     loadSelectedMonthData();
+  }
+
+  void toggleSearch() {
+    setState(() {
+      isSearching = !isSearching;
+      if (!isSearching) {
+        _searchDebounce?.cancel();
+        searchController.clear();
+        searchResults = [];
+        searchLoading = false;
+      }
+    });
+  }
+
+  void onSearchQueryChanged(String query) {
+    _searchDebounce?.cancel();
+
+    if (query.trim().isEmpty) {
+      setState(() {
+        searchResults = [];
+        searchLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      searchLoading = true;
+    });
+
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final results =
+          await DatabaseService.instance.searchTransactions(query);
+
+      if (!mounted) return;
+      // Se nel frattempo l'utente ha già cambiato/svuotato la ricerca,
+      // scartiamo questo risultato ormai obsoleto.
+      if (searchController.text.trim() != query.trim()) return;
+
+      setState(() {
+        searchResults = results;
+        searchLoading = false;
+      });
+    });
   }
 
   void _notifyOtherPages() {
@@ -1063,11 +1166,12 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-    const teal = Color(0xFF0B8D86);
+    final hc = HomeColors.of(context);
+    final teal = hc.teal;
     final analysis = _buildAnalysisSnapshot();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAF9),
+      backgroundColor: hc.pageBackground,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: isCurrentMonth && !isLoading
           ? FloatingActionButton(
@@ -1081,25 +1185,25 @@ class _HomePageState extends State<HomePage>
             )
           : null,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF7FAF9),
+        backgroundColor: hc.pageBackground,
         toolbarHeight: 68,
         titleSpacing: 20,
-        title: const Text(
+        title: Text(
           'Liblo',
           style: TextStyle(
             color: teal,
             fontSize: 24,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.4,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 1.5,
           ),
         ),
         actions: [
           Container(
             margin: const EdgeInsets.only(right: 14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: hc.cardBackground,
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE7ECEB)),
+              border: Border.all(color: hc.borderAlt),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x0D000000),
@@ -1111,7 +1215,7 @@ class _HomePageState extends State<HomePage>
             child: IconButton(
               onPressed: openSettings,
               tooltip: l('Impostazioni'),
-              icon: const Icon(
+              icon: Icon(
                 Icons.settings_outlined,
                 color: teal,
               ),
@@ -1145,10 +1249,10 @@ class _HomePageState extends State<HomePage>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.cloud_off_rounded,
                           size: 40,
-                          color: Color(0xFF899694),
+                          color: hc.textSecondaryAlt,
                         ),
                         const SizedBox(height: 14),
                         Text(
@@ -1166,8 +1270,8 @@ class _HomePageState extends State<HomePage>
                             'This might be a temporary issue, for example during iCloud sync. Try again shortly.',
                           ),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xFF7E8B89),
+                          style: TextStyle(
+                            color: hc.textSecondary,
                             fontSize: 13,
                           ),
                         ),
@@ -1259,6 +1363,12 @@ class _HomePageState extends State<HomePage>
                     !hasAnyTransactionsEver && transactions.isEmpty,
                 onAddFirstTransaction:
                     isCurrentMonth ? addTransaction : null,
+                isSearching: isSearching,
+                onToggleSearch: toggleSearch,
+                searchController: searchController,
+                onSearchQueryChanged: onSearchQueryChanged,
+                searchResults: searchResults,
+                searchLoading: searchLoading,
               ),
             ],
           ],
@@ -1293,14 +1403,15 @@ class MonthSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const teal = Color(0xFF0B8D86);
+    final hc = HomeColors.of(context);
+    final teal = hc.teal;
 
     Widget arrowButton({
       required IconData icon,
       required VoidCallback? onPressed,
     }) {
       return Material(
-        color: Colors.white,
+        color: hc.cardBackground,
         shape: const CircleBorder(),
         elevation: onPressed == null ? 0 : 1,
         shadowColor: const Color(0x14000000),
@@ -1308,7 +1419,7 @@ class MonthSelector extends StatelessWidget {
           onPressed: onPressed,
           icon: Icon(icon),
           color: onPressed == null
-              ? const Color(0xFFCAD2D0)
+              ? hc.mutedFill
               : teal,
           iconSize: 25,
           tooltip: null,
@@ -1329,8 +1440,8 @@ class MonthSelector extends StatelessWidget {
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF14263A),
+                style: TextStyle(
+                  color: hc.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
@@ -1340,8 +1451,8 @@ class MonthSelector extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   l('Storico mensile'),
-                  style: const TextStyle(
-                    color: Color(0xFF7A8986),
+                  style: TextStyle(
+                    color: hc.textMuted,
                     fontSize: 11,
                   ),
                 ),
@@ -1379,13 +1490,15 @@ class OverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
+
     return Container(
       height: 112,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: hc.cardBackground,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE9EEEC)),
+        border: Border.all(color: hc.border),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0B000000),
@@ -1422,8 +1535,8 @@ class OverviewCard extends StatelessWidget {
                         title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF26363A),
+                        style: TextStyle(
+                          color: hc.textPrimaryDeep,
                           fontSize: 12.5,
                           height: 1.12,
                           fontWeight: FontWeight.w500,
@@ -1433,11 +1546,11 @@ class OverviewCard extends StatelessWidget {
                     if (onInfo != null)
                       InkWell(
                         onTap: onInfo,
-                        child: const Padding(
-                          padding: EdgeInsets.all(2),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
                           child: Icon(
                             Icons.info_outline_rounded,
-                            color: Color(0xFF8A9694),
+                            color: hc.textSecondaryDim,
                             size: 14,
                           ),
                         ),
@@ -1491,6 +1604,7 @@ class SpendingAnalysisCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
     String centerTitle = l('Totale destinato');
     String centerValue = formatMoney(totalAmount);
 
@@ -1503,9 +1617,9 @@ class SpendingAnalysisCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: hc.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE9EEEC)),
+        border: Border.all(color: hc.border),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0A000000),
@@ -1519,8 +1633,8 @@ class SpendingAnalysisCard extends StatelessWidget {
         children: [
           Text(
             l('Analisi spese'),
-            style: const TextStyle(
-              color: Color(0xFF14263A),
+            style: TextStyle(
+              color: hc.textPrimary,
               fontSize: 19,
               fontWeight: FontWeight.w800,
             ),
@@ -1575,8 +1689,8 @@ class SpendingAnalysisCard extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Color(0xFF73807E),
+                                  style: TextStyle(
+                                    color: hc.textMutedAlt,
                                     fontSize: 8.5,
                                   ),
                                 ),
@@ -1585,8 +1699,8 @@ class SpendingAnalysisCard extends StatelessWidget {
                                   fit: BoxFit.scaleDown,
                                   child: Text(
                                     centerValue,
-                                    style: const TextStyle(
-                                      color: Color(0xFF1F3034),
+                                    style: TextStyle(
+                                      color: hc.textPrimaryDeep,
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -1646,6 +1760,8 @@ class AnalysisLegendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       padding: selected
@@ -1671,8 +1787,8 @@ class AnalysisLegendRow extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF344447),
+              style: TextStyle(
+                color: hc.textPrimaryAlt,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w600,
               ),
@@ -1681,8 +1797,8 @@ class AnalysisLegendRow extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             '${(percentage * 100).round()}%',
-            style: const TextStyle(
-              color: Color(0xFF8A9694),
+            style: TextStyle(
+              color: hc.textSecondaryDim,
               fontSize: 10.5,
               fontWeight: FontWeight.w600,
             ),
@@ -1694,8 +1810,8 @@ class AnalysisLegendRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
-              style: const TextStyle(
-                color: Color(0xFF1F3034),
+              style: TextStyle(
+                color: hc.textPrimaryDeep,
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
               ),
@@ -1722,6 +1838,12 @@ class RecentTransactionsCard extends StatelessWidget {
   final VoidCallback? onCarryoverTap;
   final bool showFirstTransactionPrompt;
   final VoidCallback? onAddFirstTransaction;
+  final bool isSearching;
+  final VoidCallback onToggleSearch;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchQueryChanged;
+  final List<FinanceTransaction> searchResults;
+  final bool searchLoading;
 
   const RecentTransactionsCard({
     super.key,
@@ -1739,16 +1861,24 @@ class RecentTransactionsCard extends StatelessWidget {
     this.onCarryoverTap,
     this.showFirstTransactionPrompt = false,
     this.onAddFirstTransaction,
+    required this.isSearching,
+    required this.onToggleSearch,
+    required this.searchController,
+    required this.onSearchQueryChanged,
+    required this.searchResults,
+    required this.searchLoading,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: hc.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE9EEEC)),
+        border: Border.all(color: hc.border),
         boxShadow: const [
           BoxShadow(
             color: Color(0x09000000),
@@ -1761,93 +1891,235 @@ class RecentTransactionsCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 17, 12, 9),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: Color(0xFF14263A),
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                if (onToggleAll != null)
-                  TextButton(
-                    onPressed: onToggleAll,
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF0B8D86),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          showAll
-                              ? le('Mostra meno', 'Show less')
-                              : le('Vedi tutti', 'See all'),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
+            child: isSearching
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: searchController,
+                          autofocus: true,
+                          onChanged: onSearchQueryChanged,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: le(
+                              'Cerca per descrizione o categoria',
+                              'Search by description or category',
+                            ),
+                            border: InputBorder.none,
+                          ),
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: hc.textPrimary,
                           ),
                         ),
-                        const SizedBox(width: 2),
-                        Icon(
-                          showAll
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.chevron_right_rounded,
-                          size: 20,
+                      ),
+                      IconButton(
+                        onPressed: onToggleSearch,
+                        icon: const Icon(Icons.close_rounded),
+                        color: hc.iconMuted,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            color: hc.textPrimary,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                      IconButton(
+                        onPressed: onToggleSearch,
+                        icon: const Icon(Icons.search_rounded),
+                        color: hc.teal,
+                        tooltip: le('Cerca nello storico', 'Search history'),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      if (onToggleAll != null)
+                        TextButton(
+                          onPressed: onToggleAll,
+                          style: TextButton.styleFrom(
+                            foregroundColor: hc.teal,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                showAll
+                                    ? le('Mostra meno', 'Show less')
+                                    : le('Vedi tutti', 'See all'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Icon(
+                                showAll
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.chevron_right_rounded,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
           ),
-          if (carryoverAmount != null) ...[
-            CarryoverItem(
-              amount: carryoverAmount!,
-              formattedAmount: carryoverFormattedAmount ??
-                  formatMoney(carryoverAmount!.abs()),
-              onTap: onCarryoverTap,
-            ),
-            const Divider(
+          if (isSearching)
+            _SearchResultsSection(
+              query: searchController.text,
+              results: searchResults,
+              loading: searchLoading,
+              formatMoney: formatMoney,
+              formatDate: formatDate,
+              categoryIcon: categoryIcon,
+              categoryColor: categoryColor,
+              onTransactionTap: onTransactionTap,
+            )
+          else ...[
+            if (carryoverAmount != null) ...[
+              CarryoverItem(
+                amount: carryoverAmount!,
+                formattedAmount: carryoverFormattedAmount ??
+                    formatMoney(carryoverAmount!.abs()),
+                onTap: onCarryoverTap,
+              ),
+              Divider(
+                height: 1,
+                indent: 72,
+                endIndent: 16,
+                color: hc.divider,
+              ),
+            ],
+            if (transactions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                child: EmptyTransactions(
+                  compact: true,
+                  showFirstPrompt: showFirstTransactionPrompt,
+                  onAddTransaction: onAddFirstTransaction,
+                ),
+              )
+            else
+              for (int i = 0; i < transactions.length; i++) ...[
+                TransactionItem(
+                  transaction: transactions[i],
+                  formattedAmount: formatMoney(transactions[i].amount),
+                  formattedDate: formatDate(transactions[i].date),
+                  categoryIcon: categoryIcon(transactions[i].category),
+                  categoryColor: categoryColor(transactions[i].category),
+                  onTap: () => onTransactionTap(transactions[i]),
+                ),
+                if (i != transactions.length - 1)
+                  Divider(
+                    height: 1,
+                    indent: 72,
+                    endIndent: 16,
+                    color: hc.divider,
+                  ),
+            ],
+            if (transactions.isNotEmpty) const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchResultsSection extends StatelessWidget {
+  final String query;
+  final List<FinanceTransaction> results;
+  final bool loading;
+  final String Function(double) formatMoney;
+  final String Function(DateTime) formatDate;
+  final IconData Function(String) categoryIcon;
+  final Color Function(String) categoryColor;
+  final ValueChanged<FinanceTransaction> onTransactionTap;
+
+  const _SearchResultsSection({
+    required this.query,
+    required this.results,
+    required this.loading,
+    required this.formatMoney,
+    required this.formatDate,
+    required this.categoryIcon,
+    required this.categoryColor,
+    required this.onTransactionTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
+
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 22),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ),
+      );
+    }
+
+    if (query.trim().isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 22),
+        child: Text(
+          le(
+            'Scrivi qualcosa per cercare tra tutti i tuoi movimenti, non solo quelli di questo mese.',
+            'Type something to search across all your transactions, not just this month.',
+          ),
+          style: TextStyle(
+            color: hc.textSecondary,
+            fontSize: 12.5,
+          ),
+        ),
+      );
+    }
+
+    if (results.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 22),
+        child: Text(
+          l('Nessun risultato.'),
+          style: TextStyle(
+            color: hc.textSecondary,
+            fontSize: 12.5,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        for (int i = 0; i < results.length; i++) ...[
+          TransactionItem(
+            transaction: results[i],
+            formattedAmount: formatMoney(results[i].amount),
+            formattedDate: formatDate(results[i].date),
+            categoryIcon: categoryIcon(results[i].category),
+            categoryColor: categoryColor(results[i].category),
+            onTap: () => onTransactionTap(results[i]),
+          ),
+          if (i != results.length - 1)
+            Divider(
               height: 1,
               indent: 72,
               endIndent: 16,
-              color: Color(0xFFEDF0EF),
+              color: hc.divider,
             ),
-          ],
-          if (transactions.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-              child: EmptyTransactions(
-                compact: true,
-                showFirstPrompt: showFirstTransactionPrompt,
-                onAddTransaction: onAddFirstTransaction,
-              ),
-            )
-          else
-            for (int i = 0; i < transactions.length; i++) ...[
-              TransactionItem(
-                transaction: transactions[i],
-                formattedAmount: formatMoney(transactions[i].amount),
-                formattedDate: formatDate(transactions[i].date),
-                categoryIcon: categoryIcon(transactions[i].category),
-                categoryColor: categoryColor(transactions[i].category),
-                onTap: () => onTransactionTap(transactions[i]),
-              ),
-              if (i != transactions.length - 1)
-                const Divider(
-                  height: 1,
-                  indent: 72,
-                  endIndent: 16,
-                  color: Color(0xFFEDF0EF),
-                ),
-            ],
-          if (transactions.isNotEmpty) const SizedBox(height: 8),
         ],
-      ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 }
@@ -1872,10 +2144,9 @@ class TransactionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
     final isIncome = transaction.isIncome;
-    final amountColor = isIncome
-        ? const Color(0xFF119B6B)
-        : const Color(0xFF1F2D31);
+    final amountColor = isIncome ? hc.green : hc.textPrimaryStrong;
 
     return InkWell(
       onTap: onTap,
@@ -1907,8 +2178,8 @@ class TransactionItem extends StatelessWidget {
                         : transaction.description,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF17282D),
+                    style: TextStyle(
+                      color: hc.textPrimaryAlt,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1918,8 +2189,8 @@ class TransactionItem extends StatelessWidget {
                     '${localizedCategory(transaction.category)} · $formattedDate',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF7E8B89),
+                    style: TextStyle(
+                      color: hc.textSecondary,
                       fontSize: 11.5,
                     ),
                   ),
@@ -1959,10 +2230,9 @@ class CarryoverItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
     final isPositive = amount >= 0;
-    final amountColor = isPositive
-        ? const Color(0xFF119B6B)
-        : const Color(0xFF1F2D31);
+    final amountColor = isPositive ? hc.green : hc.textPrimaryStrong;
 
     return InkWell(
       onTap: onTap,
@@ -1992,8 +2262,8 @@ class CarryoverItem extends StatelessWidget {
                     l('Saldo mese precedente'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF17282D),
+                    style: TextStyle(
+                      color: hc.textPrimaryAlt,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
@@ -2003,8 +2273,8 @@ class CarryoverItem extends StatelessWidget {
                     l('Riportato automaticamente'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF7E8B89),
+                    style: TextStyle(
+                      color: hc.textSecondary,
                       fontSize: 11.5,
                     ),
                   ),
@@ -2035,13 +2305,15 @@ class AnalysisEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: hc.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE9EEEC)),
+        border: Border.all(color: hc.border),
       ),
       child: Column(
         children: [
@@ -2052,9 +2324,9 @@ class AnalysisEmptyState extends StatelessWidget {
               color: Color(0xFFE0F4F1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.donut_large_outlined,
-              color: Color(0xFF0B8D86),
+              color: hc.teal,
             ),
           ),
           const SizedBox(height: 13),
@@ -2068,8 +2340,8 @@ class AnalysisEmptyState extends StatelessWidget {
           Text(
             l('Quando aggiungi spese o scegli dei soldi da mettere da parte, vedrai qui come sono distribuiti.'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF7E8B89),
+            style: TextStyle(
+              color: hc.textSecondary,
               fontSize: 13,
             ),
           ),
@@ -2093,6 +2365,8 @@ class EmptyTransactions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
@@ -2102,9 +2376,9 @@ class EmptyTransactions extends StatelessWidget {
       decoration: compact
           ? null
           : BoxDecoration(
-              color: Colors.white,
+              color: hc.cardBackground,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFE9EEEC)),
+              border: Border.all(color: hc.border),
             ),
       child: Column(
         children: [
@@ -2113,7 +2387,7 @@ class EmptyTransactions extends StatelessWidget {
                 ? Icons.celebration_outlined
                 : Icons.receipt_long_outlined,
             size: 36,
-            color: const Color(0xFF899694),
+            color: hc.textSecondaryAlt,
           ),
           const SizedBox(height: 10),
           Text(
@@ -2131,8 +2405,8 @@ class EmptyTransactions extends StatelessWidget {
                 ? l('Registra un\'entrata o una spesa per iniziare a vedere il tuo Disponibile.')
                 : l('Nessun movimento registrato per questo mese.'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF7E8B89),
+            style: TextStyle(
+              color: hc.textSecondary,
               fontSize: 12.5,
             ),
           ),

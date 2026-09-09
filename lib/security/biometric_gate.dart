@@ -186,8 +186,8 @@ class _BiometricGateState extends State<BiometricGate>
                   'Liblo',
                   style: TextStyle(
                     fontSize: 30,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.8,
+                    fontWeight: FontWeight.w300,
+                    letterSpacing: 2,
                   ),
                 ),
                 const SizedBox(height: 8),

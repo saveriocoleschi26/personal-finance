@@ -34,9 +34,14 @@ class AppCurrencyController extends ChangeNotifier {
     required bool useDecimalComma,
   }) {
     final fixed = value.abs().toStringAsFixed(2);
-    final localizedValue = useDecimalComma
-        ? fixed.replaceAll('.', ',')
-        : fixed;
+    final parts = fixed.split('.');
+    final thousandsSeparator = useDecimalComma ? '.' : ',';
+    final decimalSeparator = useDecimalComma ? ',' : '.';
+    final groupedIntegerPart = _groupThousands(
+      parts[0],
+      thousandsSeparator,
+    );
+    final localizedValue = '$groupedIntegerPart$decimalSeparator${parts[1]}';
 
     if (currencyCode == usDollar) {
       return value < 0
@@ -47,6 +52,22 @@ class AppCurrencyController extends ChangeNotifier {
     return value < 0
         ? '€ -$localizedValue'
         : '€ $localizedValue';
+  }
+
+  // Inserisce un separatore ogni tre cifre partendo da destra, es.
+  // "1234567" con separatore "." diventa "1.234.567".
+  static String _groupThousands(String digits, String separator) {
+    final buffer = StringBuffer();
+    final length = digits.length;
+
+    for (var i = 0; i < length; i++) {
+      if (i > 0 && (length - i) % 3 == 0) {
+        buffer.write(separator);
+      }
+      buffer.write(digits[i]);
+    }
+
+    return buffer.toString();
   }
 
   Future<void> load() async {

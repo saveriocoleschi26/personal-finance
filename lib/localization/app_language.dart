@@ -154,6 +154,10 @@ const Map<String, String> _english = {
   'Crea, modifica e disattiva le categorie di spesa':
       'Create, edit, and disable expense categories',
   'Lingua': 'Language',
+  'Aspetto': 'Appearance',
+  'Scegli come deve apparire Liblo': 'Choose how Liblo should look',
+  'Chiaro': 'Light',
+  'Scuro': 'Dark',
   'Scegli la lingua usata da Liblo': 'Choose the language used by Liblo',
   'Lingua dell’app': 'App language',
   'Automatico': 'Automatic',
@@ -296,6 +300,7 @@ const Map<String, String> _english = {
   'Quando aggiungi spese o scegli dei soldi da mettere da parte, vedrai qui come sono distribuiti.':
       'When you add expenses or set money aside, you will see how it is distributed here.',
   'Nessun movimento': 'No transactions',
+  'Nessun risultato.': 'No results.',
   'Non riesco a caricare i tuoi dati': 'I can\'t load your data',
   'Riprova': 'Try again',
   'Nessun movimento registrato per questo mese.':

@@ -7,12 +7,14 @@ import 'database/database_service.dart';
 import 'localization/app_language.dart';
 import 'security/biometric_gate.dart';
 import 'security/biometric_security.dart';
+import 'theme/app_theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppLanguageController.instance.load();
   await AppCurrencyController.instance.load();
   await BiometricSecurityController.instance.load();
+  await AppThemeController.instance.load();
   // Se su iCloud c'è una copia del database più recente di quella locale
   // (es. aggiunta da un altro dispositivo), la scarichiamo PRIMA di aprire
   // il database. In caso di problemi con iCloud l'app parte comunque
@@ -36,12 +38,18 @@ class _PersonalFinanceAppState extends State<PersonalFinanceApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    AppThemeController.instance.addListener(_themeChanged);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AppThemeController.instance.removeListener(_themeChanged);
     super.dispose();
+  }
+
+  void _themeChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -70,6 +78,7 @@ class _PersonalFinanceAppState extends State<PersonalFinanceApp>
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Liblo',
+      themeMode: AppThemeController.instance.themeMode,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -98,6 +107,40 @@ class _PersonalFinanceAppState extends State<PersonalFinanceApp>
             borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(
               color: seedColor,
+              width: 1.5,
+            ),
+          ),
+        ),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF0E1917),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0E1917),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: false,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF16221F),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFF223532)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(
+              color: Color(0xFF1FBF95),
               width: 1.5,
             ),
           ),
