@@ -5,6 +5,7 @@ import '../annual_expenses/annual_expenses_page.dart';
 import '../budget_dialog.dart';
 import '../currency/app_currency.dart';
 import '../database/database_service.dart';
+import '../home_page.dart' show HomeColors;
 import '../localization/app_language.dart';
 import '../planned_expenses/planned_expense.dart';
 import '../planned_expenses/planned_expenses_page.dart';
@@ -283,6 +284,7 @@ class _PlanningPageState extends State<PlanningPage> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final homeColors = HomeColors.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -319,10 +321,10 @@ class _PlanningPageState extends State<PlanningPage> {
                 vertical: 6,
               ),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: homeColors.cardBackground,
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: const Color(0xFFE9EAF0),
+                  color: homeColors.border,
                 ),
               ),
               child: Row(
@@ -409,10 +411,10 @@ class _PlanningPageState extends State<PlanningPage> {
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: homeColors.cardBackground,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: const Color(0xFFE9EAF0),
+                    color: homeColors.border,
                   ),
                 ),
                 child: Column(
@@ -479,10 +481,10 @@ class _PlanningPageState extends State<PlanningPage> {
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: homeColors.cardBackground,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0xFFE9EAF0),
+                      color: homeColors.border,
                     ),
                   ),
                   child: Row(
@@ -566,10 +568,10 @@ class _PlanningPageState extends State<PlanningPage> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: homeColors.cardBackground,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0xFFE9EAF0),
+                      color: homeColors.border,
                     ),
                   ),
                   child: Text(
@@ -583,10 +585,10 @@ class _PlanningPageState extends State<PlanningPage> {
               else
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: homeColors.cardBackground,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0xFFE9EAF0),
+                      color: homeColors.border,
                     ),
                   ),
                   child: Column(

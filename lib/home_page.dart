@@ -1193,8 +1193,7 @@ class _HomePageState extends State<HomePage>
           style: TextStyle(
             color: teal,
             fontSize: 24,
-            fontWeight: FontWeight.w300,
-            letterSpacing: 1.5,
+            fontWeight: FontWeight.w700,
           ),
         ),
         actions: [
