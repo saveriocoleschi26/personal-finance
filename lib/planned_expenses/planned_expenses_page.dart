@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../categories/category_selector.dart';
 import '../currency/app_currency.dart';
 import '../database/database_service.dart';
+import '../home_page.dart' show HomeColors;
 import '../localization/app_language.dart';
 import '../recurring_expenses/recurring_expenses_page.dart';
 import 'planned_expense.dart';
@@ -318,6 +319,7 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final hc = HomeColors.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -410,10 +412,10 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(30),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: hc.cardBackground,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFFE9EAF0),
+                          color: hc.border,
                         ),
                       ),
                       child: Column(
@@ -445,10 +447,10 @@ class _PlannedExpensesPageState extends State<PlannedExpensesPage> {
                   else
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: hc.cardBackground,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFFE9EAF0),
+                          color: hc.border,
                         ),
                       ),
                       child: Column(

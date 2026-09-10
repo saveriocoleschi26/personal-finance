@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/database_service.dart';
+import '../home_page.dart' show HomeColors;
 import '../localization/app_language.dart';
 import 'expense_category.dart';
 
@@ -162,6 +163,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final hc = HomeColors.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -187,10 +189,10 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   const SizedBox(height: 18),
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: hc.cardBackground,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFFE9EAF0),
+                        color: hc.border,
                       ),
                     ),
                     child: Column(

@@ -77,6 +77,9 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final hc = HomeColors.of(context);
+    final isDark = hc.isDark;
+
     return Scaffold(
       body: IndexedStack(
         index: selectedIndex,
@@ -97,16 +100,16 @@ class _AppShellState extends State<AppShell> {
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           height: 72,
-          backgroundColor: Colors.white,
-          indicatorColor: const Color(0xFFDDF3F0),
+          backgroundColor: hc.cardBackground,
+          indicatorColor: isDark
+              ? const Color(0xFF1A3B37)
+              : const Color(0xFFDDF3F0),
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
             final selected = states.contains(WidgetState.selected);
             return TextStyle(
-              color: selected
-                  ? const Color(0xFF0B8D86)
-                  : const Color(0xFF7B8785),
+              color: selected ? hc.teal : hc.textSecondary,
               fontSize: 12,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             );
@@ -114,9 +117,7 @@ class _AppShellState extends State<AppShell> {
           iconTheme: WidgetStateProperty.resolveWith((states) {
             final selected = states.contains(WidgetState.selected);
             return IconThemeData(
-              color: selected
-                  ? const Color(0xFF0B8D86)
-                  : const Color(0xFF7B8785),
+              color: selected ? hc.teal : hc.textSecondary,
               size: 24,
             );
           }),

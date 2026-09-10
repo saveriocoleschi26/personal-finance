@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../categories/category_selector.dart';
 import '../currency/app_currency.dart';
 import '../database/database_service.dart';
+import '../home_page.dart' show HomeColors;
 import '../localization/app_language.dart';
 import 'annual_expense.dart';
 
@@ -285,6 +286,7 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final hc = HomeColors.of(context);
     final now = DateTime.now();
     final currentMonth = DateTime(now.year, now.month, 1);
 
@@ -392,10 +394,10 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(30),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: hc.cardBackground,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFFE9EAF0),
+                          color: hc.border,
                         ),
                       ),
                       child: Column(
@@ -427,10 +429,10 @@ class _AnnualExpensesPageState extends State<AnnualExpensesPage> {
                   else
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: hc.cardBackground,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFFE9EAF0),
+                          color: hc.border,
                         ),
                       ),
                       child: Column(
