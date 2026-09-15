@@ -194,7 +194,7 @@ class CsvExportService {
         field.contains(',') ||
         field.contains('"') ||
         field.contains('\n');
-        if (!needsQuoting) return field;
+    if (!needsQuoting) return field;
     return '"${field.replaceAll('"', '""')}"';
   }
 }

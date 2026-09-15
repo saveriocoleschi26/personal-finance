@@ -1727,7 +1727,9 @@ class SpendingAnalysisCard extends StatelessWidget {
 
                                   onTouched(index);
 
-                                  if (event is FlTapUpEvent) {
+                                  if (event is FlTapUpEvent ||
+                                      event is FlPanEndEvent ||
+                                      event is FlLongPressEnd) {
                                     onSliceTap?.call(index);
                                   }
                                 },
