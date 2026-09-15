@@ -133,6 +133,9 @@ class CsvExportService {
     );
 
     final zipBytes = ZipEncoder().encode(archive);
+    if (zipBytes == null) {
+      throw Exception('Impossibile generare il file zip di esportazione.');
+    }
 
     final dir = await getTemporaryDirectory();
     final now = DateTime.now();
