@@ -116,15 +116,15 @@ class _SettingsPageState extends State<SettingsPage> {
           'Liblo data export in CSV format.',
         ),
       );
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
+      // ignore: avoid_print
+      print('Errore export CSV: $e\n$stack');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 8),
           content: Text(
-            le(
-              'Esportazione non riuscita. Riprova.',
-              'Export failed. Please try again.',
-            ),
+            '${le('Esportazione non riuscita', 'Export failed')}: $e',
           ),
         ),
       );
