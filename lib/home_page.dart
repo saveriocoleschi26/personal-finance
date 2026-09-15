@@ -641,45 +641,64 @@ class _HomePageState extends State<HomePage>
   void openCategoryTransactions(String category) {
     if (category == _savingsAnalysisKey) return;
 
-    final categoryTransactions = transactions
+    List<FinanceTransaction> filterForCategory() => transactions
         .where((t) => !t.isIncome && t.category == category)
         .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (routeContext) => Scaffold(
-          appBar: AppBar(
-            title: Text(analysisCategoryLabel(category)),
-          ),
-          body: categoryTransactions.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      l('Nessuna transazione in questa categoria questo mese.'),
-                      textAlign: TextAlign.center,
+        builder: (routeContext) => StatefulBuilder(
+          builder: (statefulContext, setLocalState) {
+            final categoryTransactions = filterForCategory();
+
+            return Scaffold(
+              appBar: AppBar(
+                title: Text(analysisCategoryLabel(category)),
+              ),
+              body: categoryTransactions.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          l('Nessuna transazione in questa categoria questo mese.'),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: categoryTransactions.length,
+                      separatorBuilder: (_, _) => Divider(
+                        height: 1,
+                        indent: 72,
+                        endIndent: 16,
+                        color: HomeColors.of(statefulContext).divider,
+                      ),
+                      itemBuilder: (itemContext, i) => TransactionItem(
+                        transaction: categoryTransactions[i],
+                        formattedAmount:
+                            formatMoney(categoryTransactions[i].amount),
+                        formattedDate:
+                            formatDate(categoryTransactions[i].date),
+                        categoryIcon:
+                            categoryIcon(categoryTransactions[i].category),
+                        categoryColor:
+                            categoryColor(categoryTransactions[i].category),
+                        onTap: () async {
+                          await showTransactionActions(
+                            categoryTransactions[i],
+                          );
+                          // Rilegge le transazioni aggiornate dopo una
+                          // modifica o eliminazione, così questa lista non
+                          // resta con dati superati finché non si torna
+                          // indietro e la si riapre.
+                          setLocalState(() {});
+                        },
+                      ),
                     ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: categoryTransactions.length,
-                  separatorBuilder: (_, __) => Divider(
-                    height: 1,
-                    indent: 72,
-                    endIndent: 16,
-                    color: HomeColors.of(routeContext).divider,
-                  ),
-                  itemBuilder: (itemContext, i) => TransactionItem(
-                    transaction: categoryTransactions[i],
-                    formattedAmount: formatMoney(categoryTransactions[i].amount),
-                    formattedDate: formatDate(categoryTransactions[i].date),
-                    categoryIcon: categoryIcon(categoryTransactions[i].category),
-                    categoryColor: categoryColor(categoryTransactions[i].category),
-                    onTap: () => showTransactionActions(categoryTransactions[i]),
-                  ),
-                ),
+            );
+          },
         ),
       ),
     );

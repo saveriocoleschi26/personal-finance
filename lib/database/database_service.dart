@@ -50,7 +50,7 @@ class DatabaseService {
 
     return openDatabase(
       path,
-      version: 10,
+      version: 11,
       onCreate: _createDatabase,
       onUpgrade: _upgradeDatabase,
     );
@@ -71,6 +71,7 @@ class DatabaseService {
       db,
       includePreviousMonth: false,
     );
+    await _createTransactionIndexesV11(db);
   }
 
   Future<void> _upgradeDatabase(
@@ -121,6 +122,10 @@ class DatabaseService {
         includePreviousMonth: true,
       );
     }
+
+    if (oldVersion < 11) {
+      await _createTransactionIndexesV11(db);
+    }
   }
 
   Future<void> _createTransactionsTable(Database db) async {
@@ -135,6 +140,20 @@ class DatabaseService {
         date TEXT NOT NULL
       )
       ''',
+    );
+  }
+
+  // Indici sulle colonne più interrogate della tabella transazioni
+  // (filtrate/ordinate per data in tutte le viste mensili, e filtrate per
+  // categoria nel grafico "Analisi spese" e nell'export CSV). A basso
+  // numero di righe la differenza è impercettibile, ma evita rallentamenti
+  // quando lo storico cresce nel tempo.
+  Future<void> _createTransactionIndexesV11(Database db) async {
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category)',
     );
   }
 

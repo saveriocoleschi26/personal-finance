@@ -186,6 +186,12 @@ class CsvExportService {
     if (column == 'is_income' || column == 'is_active' || column == 'is_paid') {
       return (value == 1 || value == true) ? 'Sì' : 'No';
     }
+    if (column == 'amount' && value is num) {
+      // Virgola come separatore decimale, coerente con il separatore di
+      // colonna ';' e con le impostazioni regionali italiane: così Excel
+      // riconosce il valore come numero anziché come testo.
+      return value.toStringAsFixed(2).replaceAll('.', ',');
+    }
     return value.toString();
   }
 
