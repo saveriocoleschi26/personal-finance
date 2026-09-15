@@ -106,7 +106,7 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
     try {
-      final files = await CsvExportService.instance.exportAll();
+      final zipFile = await CsvExportService.instance.exportAll();
       if (!mounted) return;
 
       Rect? sharePositionOrigin;
@@ -118,12 +118,8 @@ class _SettingsPageState extends State<SettingsPage> {
       }
 
       await Share.shareXFiles(
-        files.map((f) => XFile(f.path)).toList(),
+        [XFile(zipFile.path)],
         subject: 'Liblo — ${le('Esportazione dati', 'Data export')}',
-        text: le(
-          'Esportazione dei dati di Liblo in formato CSV.',
-          'Liblo data export in CSV format.',
-        ),
         sharePositionOrigin: sharePositionOrigin,
       );
     } catch (e, stack) {

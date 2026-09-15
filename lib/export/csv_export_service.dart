@@ -1,33 +1,33 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../database/database_service.dart';
 
-/// Esporta l'intero contenuto del database di Liblo in una serie di file
-/// CSV (uno per tabella), pronti per essere condivisi o salvati dall'utente.
+/// Esporta l'intero contenuto del database di Liblo in un unico file .zip
+/// contenente un CSV per ciascuna tabella, pronto per essere condiviso o
+/// salvato dall'utente.
 class CsvExportService {
   CsvExportService._();
 
   static final CsvExportService instance = CsvExportService._();
 
-  /// Genera un file CSV per ciascuna tabella rilevante e restituisce la
-  /// lista dei [File] creati in una cartella temporanea.
-  Future<List<File>> exportAll() async {
+  /// Genera i CSV di tutte le tabelle rilevanti, li comprime in un unico
+  /// file .zip in una cartella temporanea e restituisce quel [File].
+  Future<File> exportAll() async {
     final db = await DatabaseService.instance.database;
-    final dir = await getTemporaryDirectory();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final exportDir = Directory('${dir.path}/liblo_export_$timestamp');
-    if (!await exportDir.exists()) {
-      await exportDir.create(recursive: true);
+
+    final archive = Archive();
+
+    void addCsv(String fileName, Uint8List bytes) {
+      archive.addFile(ArchiveFile(fileName, bytes.length, bytes));
     }
 
-    final files = <File>[];
-
-    files.add(
-      await _writeTable(
-        exportDir,
-        fileName: 'transazioni.csv',
+    addCsv(
+      'transazioni.csv',
+      _buildCsv(
         rows: await db.query('transactions', orderBy: 'date ASC'),
         columns: const [
           'id',
@@ -48,20 +48,18 @@ class CsvExportService {
       ),
     );
 
-    files.add(
-      await _writeTable(
-        exportDir,
-        fileName: 'categorie.csv',
+    addCsv(
+      'categorie.csv',
+      _buildCsv(
         rows: await db.query('categories', orderBy: 'sort_order ASC'),
         columns: const ['id', 'name', 'icon_key', 'is_active'],
         headers: const ['ID', 'Nome', 'Icona', 'Attiva'],
       ),
     );
 
-    files.add(
-      await _writeTable(
-        exportDir,
-        fileName: 'spese_ricorrenti.csv',
+    addCsv(
+      'spese_ricorrenti.csv',
+      _buildCsv(
         rows: await db.query('recurring_expenses', orderBy: 'name ASC'),
         columns: const [
           'id',
@@ -86,10 +84,9 @@ class CsvExportService {
       ),
     );
 
-    files.add(
-      await _writeTable(
-        exportDir,
-        fileName: 'spese_pianificate.csv',
+    addCsv(
+      'spese_pianificate.csv',
+      _buildCsv(
         rows: await db.query('planned_expenses', orderBy: 'due_date ASC'),
         columns: const [
           'id',
@@ -110,10 +107,9 @@ class CsvExportService {
       ),
     );
 
-    files.add(
-      await _writeTable(
-        exportDir,
-        fileName: 'spese_annuali.csv',
+    addCsv(
+      'spese_annuali.csv',
+      _buildCsv(
         rows: await db.query('annual_expenses', orderBy: 'due_date ASC'),
         columns: const [
           'id',
@@ -136,16 +132,24 @@ class CsvExportService {
       ),
     );
 
-    return files;
+    final zipBytes = ZipEncoder().encode(archive);
+
+    final dir = await getTemporaryDirectory();
+    final now = DateTime.now();
+    final stamp =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-'
+        '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+    final zipFile = File('${dir.path}/Liblo-export-$stamp.zip');
+    await zipFile.writeAsBytes(zipBytes, flush: true);
+
+    return zipFile;
   }
 
-  Future<File> _writeTable(
-    Directory dir, {
-    required String fileName,
+  Uint8List _buildCsv({
     required List<Map<String, Object?>> rows,
     required List<String> columns,
     required List<String> headers,
-  }) async {
+  }) {
     final buffer = StringBuffer();
     buffer.writeln(headers.map(_escapeCsvField).join(','));
 
@@ -157,16 +161,9 @@ class CsvExportService {
       buffer.writeln(values.map(_escapeCsvField).join(','));
     }
 
-    final file = File('${dir.path}/$fileName');
     // BOM UTF-8 iniziale: garantisce che Excel apra correttamente gli
     // accenti italiani senza bisogno di importazione manuale.
-    await file.writeAsBytes([
-      0xEF,
-      0xBB,
-      0xBF,
-      ...buffer.toString().codeUnits,
-    ]);
-    return file;
+    return Uint8List.fromList([0xEF, 0xBB, 0xBF, ...buffer.toString().codeUnits]);
   }
 
   String _formatValue(String column, Object? value) {
@@ -184,3 +181,4 @@ class CsvExportService {
     return '"${field.replaceAll('"', '""')}"';
   }
 }
+
