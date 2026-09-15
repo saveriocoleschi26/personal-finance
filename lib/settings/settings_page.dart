@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../categories/categories_page.dart';
 import '../cloud_sync/icloud_sync_service.dart';
 import '../currency/app_currency.dart';
 import '../database/database_service.dart';
+import '../export/csv_export_service.dart';
 import '../localization/app_language.dart';
 import '../onboarding/onboarding_page.dart';
 import '../security/biometric_security.dart';
@@ -21,6 +23,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   bool _changingSecurity = false;
   bool _syncingNow = false;
+  bool _exportingNow = false;
   DateTime? _lastSyncTime;
 
   AppLanguageController get _language => AppLanguageController.instance;
@@ -94,6 +97,44 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _exportCsv() async {
+    setState(() {
+      _exportingNow = true;
+    });
+
+    try {
+      final files = await CsvExportService.instance.exportAll();
+      if (!mounted) return;
+
+      await Share.shareXFiles(
+        files.map((f) => XFile(f.path)).toList(),
+        subject: 'Liblo — ${le('Esportazione dati', 'Data export')}',
+        text: le(
+          'Esportazione dei dati di Liblo in formato CSV.',
+          'Liblo data export in CSV format.',
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            le(
+              'Esportazione non riuscita. Riprova.',
+              'Export failed. Please try again.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _exportingNow = false;
+        });
+      }
+    }
   }
 
   String _languageSubtitle() {
@@ -441,6 +482,45 @@ class _SettingsPageState extends State<SettingsPage> {
                 fontSize: 12,
                 color: colors.onSurfaceVariant,
               ),
+            ),
+          ),
+          const SizedBox(height: 26),
+          Text(
+            l('Dati'),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _SettingsCard(
+            child: ListTile(
+              leading: _SettingsIcon(
+                icon: Icons.file_download_outlined,
+                color: colors.primary,
+                background: colors.primaryContainer,
+              ),
+              title: Text(
+                le('Esporta dati (CSV)', 'Export data (CSV)'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                le(
+                  'Transazioni, categorie, spese ricorrenti, pianificate e annuali',
+                  'Transactions, categories, recurring, planned and annual expenses',
+                ),
+              ),
+              trailing: _exportingNow
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.ios_share_rounded),
+              onTap: _exportingNow ? null : _exportCsv,
             ),
           ),
           const SizedBox(height: 26),
