@@ -1715,23 +1715,26 @@ class SpendingAnalysisCard extends StatelessWidget {
                               borderData: FlBorderData(show: false),
                               pieTouchData: PieTouchData(
                                 touchCallback: (event, response) {
+                                  final touchedIndex = response
+                                      ?.touchedSection
+                                      ?.touchedSectionIndex;
+
+                                  final isReleaseEvent =
+                                      event is FlTapUpEvent ||
+                                          event is FlPanEndEvent ||
+                                          event is FlLongPressEnd;
+
+                                  if (isReleaseEvent && touchedIndex != null) {
+                                    onSliceTap?.call(touchedIndex);
+                                  }
+
                                   if (!event.isInterestedForInteractions ||
-                                      response?.touchedSection == null) {
+                                      touchedIndex == null) {
                                     onTouched(-1);
                                     return;
                                   }
 
-                                  final index = response!
-                                      .touchedSection!
-                                      .touchedSectionIndex;
-
-                                  onTouched(index);
-
-                                  if (event is FlTapUpEvent ||
-                                      event is FlPanEndEvent ||
-                                      event is FlLongPressEnd) {
-                                    onSliceTap?.call(index);
-                                  }
+                                  onTouched(touchedIndex);
                                 },
                               ),
                             ),
