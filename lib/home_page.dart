@@ -638,6 +638,53 @@ class _HomePageState extends State<HomePage>
         : '$day/$month';
   }
 
+  void openCategoryTransactions(String category) {
+    if (category == _savingsAnalysisKey) return;
+
+    final categoryTransactions = transactions
+        .where((t) => !t.isIncome && t.category == category)
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (routeContext) => Scaffold(
+          appBar: AppBar(
+            title: Text(analysisCategoryLabel(category)),
+          ),
+          body: categoryTransactions.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      l('Nessuna transazione in questa categoria questo mese.'),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: categoryTransactions.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    indent: 72,
+                    endIndent: 16,
+                    color: HomeColors.of(routeContext).divider,
+                  ),
+                  itemBuilder: (itemContext, i) => TransactionItem(
+                    transaction: categoryTransactions[i],
+                    formattedAmount: formatMoney(categoryTransactions[i].amount),
+                    formattedDate: formatDate(categoryTransactions[i].date),
+                    categoryIcon: categoryIcon(categoryTransactions[i].category),
+                    categoryColor: categoryColor(categoryTransactions[i].category),
+                    onTap: () => showTransactionActions(categoryTransactions[i]),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
   DateTime monthStart(DateTime date) {
     return DateTime(
       date.year,
@@ -1314,6 +1361,11 @@ class _HomePageState extends State<HomePage>
                       touchedCategoryIndex = index;
                     });
                   },
+                  onSliceTap: (index) {
+                    if (index >= 0 && index < analysis.entries.length) {
+                      openCategoryTransactions(analysis.entries[index].key);
+                    }
+                  },
                 ),
               if (!isCurrentMonth) ...[
                 const SizedBox(height: 18),
@@ -1588,6 +1640,7 @@ class SpendingAnalysisCard extends StatelessWidget {
   final String Function(String category) categoryLabel;
   final String Function(double value) formatMoney;
   final ValueChanged<int> onTouched;
+  final ValueChanged<int>? onSliceTap;
 
   const SpendingAnalysisCard({
     super.key,
@@ -1599,6 +1652,7 @@ class SpendingAnalysisCard extends StatelessWidget {
     required this.categoryLabel,
     required this.formatMoney,
     required this.onTouched,
+    this.onSliceTap,
   });
 
   @override
@@ -1667,11 +1721,15 @@ class SpendingAnalysisCard extends StatelessWidget {
                                     return;
                                   }
 
-                                  onTouched(
-                                    response!
-                                        .touchedSection!
-                                        .touchedSectionIndex,
-                                  );
+                                  final index = response!
+                                      .touchedSection!
+                                      .touchedSectionIndex;
+
+                                  onTouched(index);
+
+                                  if (event is FlTapUpEvent) {
+                                    onSliceTap?.call(index);
+                                  }
                                 },
                               ),
                             ),
