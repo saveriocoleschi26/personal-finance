@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -166,7 +167,7 @@ class CsvExportService {
 
     // BOM UTF-8 iniziale: garantisce che Excel apra correttamente gli
     // accenti italiani senza bisogno di importazione manuale.
-    return Uint8List.fromList([0xEF, 0xBB, 0xBF, ...buffer.toString().codeUnits]);
+    return Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(buffer.toString())]);
   }
 
   String _formatValue(String column, Object? value) {
