@@ -154,15 +154,26 @@ class CsvExportService {
     required List<String> columns,
     required List<String> headers,
   }) {
+    // Punto e virgola come separatore: è il delimitatore CSV che Excel si
+    // aspetta con le impostazioni regionali italiane (dove la virgola è
+    // il separatore decimale), quindi apre le colonne correttamente senza
+    // bisogno di un'importazione guidata manuale.
+    const separator = ';';
+
     final buffer = StringBuffer();
-    buffer.writeln(headers.map(_escapeCsvField).join(','));
+    // Direttiva "sep=;" riconosciuta da Excel su qualunque lingua/sistema:
+    // forza il separatore indicato indipendentemente dalle impostazioni
+    // regionali di chi apre il file (utile anche per chi usa Excel in
+    // inglese, dove il separatore atteso di default sarebbe la virgola).
+    buffer.writeln('sep=$separator');
+    buffer.writeln(headers.map(_escapeCsvField).join(separator));
 
     for (final row in rows) {
       final values = columns.map((column) {
         final value = row[column];
         return _formatValue(column, value);
       });
-      buffer.writeln(values.map(_escapeCsvField).join(','));
+      buffer.writeln(values.map(_escapeCsvField).join(separator));
     }
 
     // BOM UTF-8 iniziale: garantisce che Excel apra correttamente gli
@@ -179,8 +190,10 @@ class CsvExportService {
   }
 
   String _escapeCsvField(String field) {
-    final needsQuoting =
-        field.contains(',') || field.contains('"') || field.contains('\n');
+    final needsQuoting = field.contains(';') ||
+        field.contains(',') ||
+        field.contains('"') ||
+        field.contains('\n');
     if (!needsQuoting) return field;
     return '"${field.replaceAll('"', '""')}"';
   }
