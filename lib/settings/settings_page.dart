@@ -24,6 +24,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _changingSecurity = false;
   bool _syncingNow = false;
   bool _exportingNow = false;
+  final GlobalKey _exportButtonKey = GlobalKey();
   DateTime? _lastSyncTime;
 
   AppLanguageController get _language => AppLanguageController.instance;
@@ -108,6 +109,14 @@ class _SettingsPageState extends State<SettingsPage> {
       final files = await CsvExportService.instance.exportAll();
       if (!mounted) return;
 
+      Rect? sharePositionOrigin;
+      final renderBox =
+          _exportButtonKey.currentContext?.findRenderObject() as RenderBox?;
+      if (renderBox != null) {
+        final offset = renderBox.localToGlobal(Offset.zero);
+        sharePositionOrigin = offset & renderBox.size;
+      }
+
       await Share.shareXFiles(
         files.map((f) => XFile(f.path)).toList(),
         subject: 'Liblo — ${le('Esportazione dati', 'Data export')}',
@@ -115,6 +124,7 @@ class _SettingsPageState extends State<SettingsPage> {
           'Esportazione dei dati di Liblo in formato CSV.',
           'Liblo data export in CSV format.',
         ),
+        sharePositionOrigin: sharePositionOrigin,
       );
     } catch (e, stack) {
       if (!mounted) return;
@@ -496,6 +506,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 10),
           _SettingsCard(
             child: ListTile(
+              key: _exportButtonKey,
               leading: _SettingsIcon(
                 icon: Icons.file_download_outlined,
                 color: colors.primary,
