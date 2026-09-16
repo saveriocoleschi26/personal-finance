@@ -216,8 +216,8 @@ const Map<String, String> _english = {
   'Dalla Home puoi cambiare mese, vedere il riepilogo, l’analisi per categoria e lo storico dei movimenti.':
       'From Home, you can switch months and view your summary, category breakdown, and transaction history.',
   'Personalizza Liblo': 'Personalize Liblo',
-  'Nelle Impostazioni puoi gestire categorie, lingua, valuta e protezione biometrica. La scelta tra euro e dollari cambia il simbolo, non converte gli importi.':
-      'In Settings, you can manage categories, language, currency, and biometric protection. Choosing euros or dollars changes the symbol but does not convert amounts.',
+  'Nelle Impostazioni puoi gestire la scelta della valuta, categorie, lingua, e protezione biometrica.':
+      'In Settings, you can manage currency, categories, language and biometric protection.',
   'Modifica data': 'Edit date',
   'Data del movimento': 'Transaction date',
   'Annulla': 'Cancel',
