@@ -59,8 +59,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
         _OnboardingStep(
           icon: Icons.pie_chart_outline_rounded,
           title: l('Controlla dove vanno i soldi'),
-          description: l(
-            'Dalla Home puoi cambiare mese, vedere il riepilogo, l’analisi per categoria e lo storico dei movimenti.',
+          description: le(
+            'Dalla Home puoi cambiare mese, vedere il riepilogo e lo storico dei movimenti. Tocca una fetta del grafico per vedere le spese di quella categoria.',
+            'From the Home screen you can change month, see the overview and the transaction history. Tap a slice of the chart to see the expenses in that category.',
           ),
         ),
         _OnboardingStep(
@@ -68,6 +69,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
           title: l('Personalizza Liblo'),
           description: l(
             'Nelle Impostazioni puoi gestire categorie, lingua, valuta e protezione biometrica. La scelta tra euro e dollari cambia il simbolo, non converte gli importi.',
+          ),
+        ),
+        _OnboardingStep(
+          icon: Icons.cloud_done_outlined,
+          title: le('I tuoi dati sono al sicuro', 'Your data is safe'),
+          description: le(
+            'Liblo salva automaticamente una copia dei tuoi dati su iCloud (beta), così li ritrovi sugli altri tuoi dispositivi Apple. Dalle Impostazioni puoi anche esportare tutto in CSV, pronto per Excel.',
+            'Liblo automatically backs up your data to iCloud (beta), so you\'ll find it on your other Apple devices too. From Settings you can also export everything to CSV, ready for Excel.',
           ),
         ),
       ];

@@ -669,7 +669,7 @@ class _HomePageState extends State<HomePage>
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: categoryTransactions.length,
-                      separatorBuilder: (_, _) => Divider(
+                      separatorBuilder: (_, __) => Divider(
                         height: 1,
                         indent: 72,
                         endIndent: 16,
