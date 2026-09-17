@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -8,6 +9,7 @@ import '../cloud_sync/icloud_sync_service.dart';
 import '../currency/app_currency.dart';
 import '../database/database_service.dart';
 import '../export/csv_export_service.dart';
+import '../import/import_review_page.dart';
 import '../localization/app_language.dart';
 import '../onboarding/onboarding_page.dart';
 import '../security/biometric_security.dart';
@@ -24,6 +26,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _changingSecurity = false;
   bool _syncingNow = false;
   bool _exportingNow = false;
+  bool _importingNow = false;
   final GlobalKey _exportButtonKey = GlobalKey();
   DateTime? _lastSyncTime;
 
@@ -141,6 +144,47 @@ class _SettingsPageState extends State<SettingsPage> {
           _exportingNow = false;
         });
       }
+    }
+  }
+
+  Future<void> _importFromStatement() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+
+    final path = result?.files.single.path;
+    if (path == null) return;
+
+    setState(() {
+      _importingNow = true;
+    });
+
+    if (!mounted) return;
+
+    final importedCount = await Navigator.of(context).push<int>(
+      MaterialPageRoute(
+        builder: (context) => ImportReviewPage(filePath: path),
+      ),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _importingNow = false;
+    });
+
+    if (importedCount != null && importedCount > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            le(
+              '$importedCount transazioni importate',
+              '$importedCount transactions imported',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -529,6 +573,39 @@ class _SettingsPageState extends State<SettingsPage> {
                     )
                   : const Icon(Icons.ios_share_rounded),
               onTap: _exportingNow ? null : _exportCsv,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _SettingsCard(
+            child: ListTile(
+              leading: _SettingsIcon(
+                icon: Icons.file_upload_outlined,
+                color: colors.primary,
+                background: colors.primaryContainer,
+              ),
+              title: Text(
+                le(
+                  'Importa da estratto conto (PDF)',
+                  'Import from account statement (PDF)',
+                ),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                le(
+                  'Riconosce le transazioni e te le fa rivedere prima di importarle',
+                  'Detects transactions and lets you review them before importing',
+                ),
+              ),
+              trailing: _importingNow
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_right),
+              onTap: _importingNow ? null : _importFromStatement,
             ),
           ),
           const SizedBox(height: 26),

@@ -68,5 +68,7 @@
 	</array>
 	<key>NSFaceIDUsageDescription</key>
 <string>Usa Face ID per proteggere l'accesso a P.F.</string>
+	<key>NSCameraUsageDescription</key>
+<string>Liblo usa la fotocamera per scansionare gli scontrini e aggiungere automaticamente il movimento.</string>
 </dict>
 </plist>

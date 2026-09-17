@@ -8,9 +8,20 @@ import 'transaction/final_transaction.dart';
 class AddTransactionPage extends StatefulWidget {
   final FinanceTransaction? transaction;
 
+  /// Valori pre-compilati provenienti dalla scansione di uno scontrino.
+  /// Usati solo quando [transaction] è null (non ha senso pre-compilare
+  /// una modifica di un movimento già esistente). Ogni valore è
+  /// indipendente e può essere assente se l'OCR non l'ha riconosciuto.
+  final double? prefillAmount;
+  final String? prefillDescription;
+  final DateTime? prefillDate;
+
   const AddTransactionPage({
     super.key,
     this.transaction,
+    this.prefillAmount,
+    this.prefillDescription,
+    this.prefillDate,
   });
 
   @override
@@ -27,6 +38,12 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
 
   bool get isEditing => widget.transaction != null;
 
+  bool get isFromReceiptScan =>
+      !isEditing &&
+      (widget.prefillAmount != null ||
+          widget.prefillDescription != null ||
+          widget.prefillDate != null);
+
   @override
   void initState() {
     super.initState();
@@ -34,18 +51,31 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     final transaction = widget.transaction;
 
     amountController = TextEditingController(
-      text: transaction == null
-          ? ''
-          : transaction.amount.toStringAsFixed(2).replaceAll('.', ','),
+      text: transaction != null
+          ? transaction.amount.toStringAsFixed(2).replaceAll('.', ',')
+          : widget.prefillAmount != null
+              ? widget.prefillAmount!.toStringAsFixed(2).replaceAll('.', ',')
+              : '',
     );
 
     descriptionController = TextEditingController(
-      text: transaction?.description ?? '',
+      text: transaction?.description ?? widget.prefillDescription ?? '',
     );
 
     selectedCategory = transaction?.category ?? 'Spesa alimentare';
     isIncome = transaction?.isIncome ?? false;
-    selectedDate = transaction?.date ?? DateTime.now();
+
+    final prefillDate = widget.prefillDate;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Una data letta dallo scontrino non può comunque essere futura:
+    // se capitasse (OCR sbagliato), ripieghiamo su oggi invece di
+    // bloccare il date picker, che non accetta date future.
+    selectedDate = transaction?.date ??
+        (prefillDate != null && !prefillDate.isAfter(today)
+            ? prefillDate
+            : now);
   }
 
   @override
@@ -159,6 +189,35 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (isFromReceiptScan) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.secondaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.document_scanner_outlined,
+                      size: 20,
+                      color: colors.onSecondaryContainer,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l('Dati letti dallo scontrino: controlla che siano corretti prima di salvare.'),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colors.onSecondaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
             Text(
               l('Tipo di movimento'),
               style: TextStyle(

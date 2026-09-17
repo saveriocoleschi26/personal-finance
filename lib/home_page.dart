@@ -11,6 +11,8 @@ import 'database/database_service.dart';
 import 'localization/app_language.dart';
 import 'monthly_carryover/monthly_balance_calculator.dart';
 import 'planned_expenses/planned_expense.dart';
+import 'receipt_scan/receipt_scan_result.dart';
+import 'receipt_scan/scan_receipt_page.dart';
 import 'settings/settings_page.dart';
 import 'transaction/final_transaction.dart';
 
@@ -669,7 +671,7 @@ class _HomePageState extends State<HomePage>
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: categoryTransactions.length,
-                      separatorBuilder: (_, __) => Divider(
+                      separatorBuilder: (_, _) => Divider(
                         height: 1,
                         indent: 72,
                         endIndent: 16,
@@ -712,14 +714,20 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Future<void> addTransaction() async {
+  Future<void> _openAddTransactionPage({
+    ReceiptScanResult? prefill,
+  }) async {
     if (!isCurrentMonth) return;
 
     final FinanceTransaction? newTransaction =
         await Navigator.push<FinanceTransaction>(
       context,
       MaterialPageRoute(
-        builder: (context) => const AddTransactionPage(),
+        builder: (context) => AddTransactionPage(
+          prefillAmount: prefill?.amount,
+          prefillDescription: prefill?.merchant,
+          prefillDate: prefill?.date,
+        ),
       ),
     );
 
@@ -729,8 +737,6 @@ class _HomePageState extends State<HomePage>
       newTransaction,
     );
 
-    // Se l'utente ha inserito una data di un mese precedente,
-    // spostiamo subito la Home su quel mese così può verificare il movimento.
     if (mounted) {
       setState(() {
         selectedMonth = monthStart(newTransaction.date);
@@ -760,6 +766,63 @@ class _HomePageState extends State<HomePage>
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  Future<void> scanReceipt() async {
+    if (!isCurrentMonth) return;
+
+    final ReceiptScanResult? result = await Navigator.push<ReceiptScanResult>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ScanReceiptPage(),
+        fullscreenDialog: true,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    await _openAddTransactionPage(prefill: result);
+  }
+
+  Future<void> showAddTransactionOptions() async {
+    if (!isCurrentMonth) return;
+
+    final hc = HomeColors.of(context);
+
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: hc.pageBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.edit_note_rounded),
+              title: Text(l('Inserisci manualmente')),
+              onTap: () => Navigator.pop(context, 'manual'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.document_scanner_outlined),
+              title: Text(l('Scansiona scontrino')),
+              onTap: () => Navigator.pop(context, 'scan'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || choice == null) return;
+
+    if (choice == 'scan') {
+      await scanReceipt();
+    } else {
+      await _openAddTransactionPage();
+    }
   }
 
   Future<void> editTransaction(
@@ -1241,7 +1304,7 @@ class _HomePageState extends State<HomePage>
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: isCurrentMonth && !isLoading
           ? FloatingActionButton(
-              onPressed: addTransaction,
+              onPressed: showAddTransactionOptions,
               tooltip: l('Aggiungi movimento'),
               backgroundColor: teal,
               foregroundColor: Colors.white,
@@ -1432,7 +1495,7 @@ class _HomePageState extends State<HomePage>
                 showFirstTransactionPrompt:
                     !hasAnyTransactionsEver && transactions.isEmpty,
                 onAddFirstTransaction:
-                    isCurrentMonth ? addTransaction : null,
+                    isCurrentMonth ? showAddTransactionOptions : null,
                 isSearching: isSearching,
                 onToggleSearch: toggleSearch,
                 searchController: searchController,

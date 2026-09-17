@@ -68,7 +68,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           icon: Icons.tune_rounded,
           title: l('Personalizza Liblo'),
           description: l(
-            'Nelle Impostazioni puoi gestire la scelta della valuta, categorie, lingua, e protezione biometrica.',
+            'Nelle Impostazioni puoi gestire categorie, lingua, valuta e protezione biometrica. La scelta tra euro e dollari cambia il simbolo, non converte gli importi.',
           ),
         ),
         _OnboardingStep(

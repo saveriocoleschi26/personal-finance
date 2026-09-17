@@ -216,8 +216,8 @@ const Map<String, String> _english = {
   'Dalla Home puoi cambiare mese, vedere il riepilogo, l’analisi per categoria e lo storico dei movimenti.':
       'From Home, you can switch months and view your summary, category breakdown, and transaction history.',
   'Personalizza Liblo': 'Personalize Liblo',
-  'Nelle Impostazioni puoi gestire la scelta della valuta, categorie, lingua, e protezione biometrica.':
-      'In Settings, you can manage currency, categories, language and biometric protection.',
+  'Nelle Impostazioni puoi gestire categorie, lingua, valuta e protezione biometrica. La scelta tra euro e dollari cambia il simbolo, non converte gli importi.':
+      'In Settings, you can manage categories, language, currency, and biometric protection. Choosing euros or dollars changes the symbol but does not convert amounts.',
   'Modifica data': 'Edit date',
   'Data del movimento': 'Transaction date',
   'Annulla': 'Cancel',
@@ -394,4 +394,12 @@ const Map<String, String> _english = {
   'Quanto mettere da parte': 'How much to set aside',
   'La scadenza è nello stesso mese: non ci sono mesi precedenti in cui mettere da parte questa somma.':
       'The expense is due this month, so there are no earlier months to spread this amount across.',
+  // Scansione scontrino
+  'Inserisci manualmente': 'Enter manually',
+  'Scansiona scontrino': 'Scan receipt',
+  'Lettura scontrino in corso...': 'Reading receipt...',
+  'Non sono riuscito a leggere lo scontrino. Riprova o inserisci il movimento manualmente.':
+      'I couldn\'t read the receipt. Try again or enter the transaction manually.',
+  'Dati letti dallo scontrino: controlla che siano corretti prima di salvare.':
+      'Details read from the receipt: check they\'re correct before saving.',
 };
