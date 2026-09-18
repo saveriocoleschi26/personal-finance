@@ -148,12 +148,12 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _importFromStatement() async {
-    final result = await FilePicker.platform.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
 
-    final path = result?.files.single.path;
+    final path = file?.path;
     if (path == null) return;
 
     setState(() {
