@@ -70,5 +70,9 @@
 <string>Usa Face ID per proteggere l'accesso a P.F.</string>
 	<key>NSCameraUsageDescription</key>
 <string>Liblo usa la fotocamera per scansionare gli scontrini e aggiungere automaticamente il movimento.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+<string>Liblo può accedere alle tue foto per selezionare l'immagine di uno scontrino da scansionare.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+<string>Liblo non utilizza la tua posizione.</string>
 </dict>
 </plist>
