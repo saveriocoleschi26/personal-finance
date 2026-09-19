@@ -65,6 +65,20 @@ class BankStatementParser {
     r'(-?\d{1,3}(?:\.\d{3})*,\d{2})\b',
   );
 
+  // Secondo schema, usato quando il primo non trova nulla: alcune banche
+  // (es. i conti correnti in stile "Movimenti Globali" di RelaxBanking)
+  // mettono l'importo PRIMA della descrizione, non dopo: "data valuta
+  // data contabile importo causale descrizione". A volte l'importo
+  // negativo è attaccato alla parola successiva senza spazio (es.
+  // "-397,14Pagamento utilizzo carte"), quindi qui il separatore dopo
+  // l'importo è facoltativo (\s*), non obbligatorio.
+  static final RegExp _rowPatternAmountFirst = RegExp(
+    r'(\d{2}[\/\-.]\d{2}[\/\-.]\d{4})\s+'
+    r'(\d{2}[\/\-.]\d{2}[\/\-.]\d{4})\s+'
+    r'(-?\d{1,3}(?:\.\d{3})*,\d{2})\s*'
+    r'([^\n]+)',
+  );
+
   // Marcatore di inizio della tabella movimenti vera e propria. Prima di
   // questo punto c'è solo intestazione (titolare, plafond, totale spese
   // mensili, indirizzo...) che NON va scansionata: contiene campi tipo
@@ -125,40 +139,80 @@ class BankStatementParser {
     final results = <ImportedTransactionCandidate>[];
 
     for (final match in _rowPattern.allMatches(searchableText)) {
-      final dateText = match.group(1)!;
-      final descriptionText = match.group(3)!.trim();
-      final amountText = match.group(4)!;
-
-      final date = _parseDate(dateText);
-      if (date == null) continue;
-
-      // Scarta descrizioni vuote o composte solo da altri numeri: di
-      // solito significa che la riga intercettata non è un vero
-      // movimento (es. intestazioni di colonna spezzate diversamente).
-      if (descriptionText.isEmpty || _datePattern.hasMatch(descriptionText)) {
-        continue;
-      }
-
-      final isNegative = amountText.trim().startsWith('-');
-      final normalizedAmount = amountText
-          .replaceAll('-', '')
-          .replaceAll('.', '')
-          .replaceAll(',', '.');
-      final amount = double.tryParse(normalizedAmount);
-      if (amount == null || amount == 0) continue;
-
-      results.add(
-        ImportedTransactionCandidate(
-          date: date,
-          description: descriptionText,
-          amount: amount,
-          statementAmountWasNegative: isNegative,
-          category: guessCategory(descriptionText, availableCategoryNames),
-        ),
+      final candidate = _buildCandidate(
+        dateText: match.group(1)!,
+        descriptionText: match.group(3)!.trim(),
+        amountText: match.group(4)!,
+        availableCategoryNames: availableCategoryNames,
       );
+      if (candidate != null) results.add(candidate);
+    }
+
+    // Schema alternativo (importo prima della descrizione): si prova solo
+    // se il primo non ha trovato nulla, per evitare di leggere due volte
+    // lo stesso movimento su un documento che in teoria potrebbe
+    // (raramente) far scattare entrambi gli schemi.
+    if (results.isEmpty) {
+      for (final match in _rowPatternAmountFirst.allMatches(searchableText)) {
+        final candidate = _buildCandidate(
+          dateText: match.group(1)!,
+          descriptionText: match.group(4)!.trim(),
+          amountText: match.group(3)!,
+          availableCategoryNames: availableCategoryNames,
+        );
+        if (candidate != null) results.add(candidate);
+      }
     }
 
     return results;
+  }
+
+  static ImportedTransactionCandidate? _buildCandidate({
+    required String dateText,
+    required String descriptionText,
+    required String amountText,
+    required List<String> availableCategoryNames,
+  }) {
+    final date = _parseDate(dateText);
+    if (date == null) return null;
+
+    // Scarta descrizioni vuote o composte ESCLUSIVAMENTE da una data: di
+    // solito significa che la riga intercettata non è un vero movimento
+    // (es. quando lo schema principale, pensato per "data descrizione
+    // importo", finisce per leggere una seconda data di riga come se
+    // fosse la descrizione). Il controllo richiede che la descrizione
+    // combaci per intero con una data, non che la contenga soltanto: una
+    // descrizione vera può benissimo menzionare una data al suo interno
+    // (es. un riferimento tipo "INSTANT DEL 02/07/2026 ORE 08:14") senza
+    // per questo essere scartata.
+    if (descriptionText.isEmpty || _isOnlyADate(descriptionText)) {
+      return null;
+    }
+
+    final isNegative = amountText.trim().startsWith('-');
+    final normalizedAmount = amountText
+        .replaceAll('-', '')
+        .replaceAll('.', '')
+        .replaceAll(',', '.');
+    final amount = double.tryParse(normalizedAmount);
+    if (amount == null || amount == 0) return null;
+
+    return ImportedTransactionCandidate(
+      date: date,
+      description: descriptionText,
+      amount: amount,
+      statementAmountWasNegative: isNegative,
+      category: guessCategory(descriptionText, availableCategoryNames),
+    );
+  }
+
+  // Vero solo se l'intera stringa (spazi esclusi) è una singola data,
+  // senza nient'altro intorno. Usato per scartare i pochi casi in cui lo
+  // schema principale finisce per catturare una seconda data di riga
+  // come se fosse la descrizione del movimento.
+  static bool _isOnlyADate(String text) {
+    final match = _datePattern.matchAsPrefix(text);
+    return match != null && match.start == 0 && match.end == text.length;
   }
 
   static DateTime? _parseDate(String text) {
