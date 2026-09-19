@@ -65,12 +65,36 @@ class BankStatementParser {
     r'(-?\d{1,3}(?:\.\d{3})*,\d{2})\b',
   );
 
-  // Una volta incontrata una riga che inizia con una di queste parole
-  // (tipicamente un rigo di totale), la scansione si ferma: tutto quello
-  // che segue è riepilogo/dettaglio secondario, non elenco movimenti, e
+  // Marcatore di inizio della tabella movimenti vera e propria. Prima di
+  // questo punto c'è solo intestazione (titolare, plafond, totale spese
+  // mensili, indirizzo...) che NON va scansionata: contiene campi tipo
+  // "data + importo" che assomigliano a un movimento pur non essendolo
+  // (es. "Data di addebito 10/09/2026" seguito da "Plafond concesso
+  // 1.500,00" verrebbe letto come un movimento da 1.500€), e frasi come
+  // "Totale spese mensili" che farebbero scattare troppo presto il
+  // marcatore di fine qui sotto. Se non troviamo questa intestazione di
+  // tabella (formato diverso da banca a banca), si ripiega sul testo
+  // intero, per non perdere la capacità di leggere altri formati.
+  static final RegExp _startMarker = RegExp(
+    r'^\s*(RIEPILOGO\s+(OPERAZIONI|MOVIMENTI)|'
+    r'(LISTA|ELENCO|DETTAGLIO)\s+MOVIMENTI)',
+    caseSensitive: false,
+    multiLine: true,
+  );
+
+  // Una volta incontrata, DOPO l'inizio della tabella, una riga che
+  // inizia con una di queste parole (tipicamente un rigo di totale in
+  // fondo al documento), la scansione si ferma: tutto quello che segue
+  // è riepilogo/dettaglio secondario, non elenco movimenti, e
   // rischierebbe di essere letto come transazioni duplicate o inventate.
+  //
+  // "SALDO INIZIALE" è volutamente escluso da questo elenco: sugli
+  // estratti conto italiani compare in testa al documento, prima della
+  // lista movimenti, non in coda — usarlo come marcatore di stop
+  // troncherebbe la scansione subito dopo l'intestazione, prima ancora
+  // di arrivare ai movimenti veri.
   static final RegExp _stopMarker = RegExp(
-    r'^\s*(TOTALE|SALDO\s+(INIZIALE|FINALE)|RIEPILOGO\s+ACQUISTI)',
+    r'^\s*(TOTALE|SALDO\s+FINALE|RIEPILOGO\s+ACQUISTI)',
     caseSensitive: false,
     multiLine: true,
   );
@@ -89,10 +113,14 @@ class BankStatementParser {
     String fullText,
     List<String> availableCategoryNames,
   ) {
-    final stopMatch = _stopMarker.firstMatch(fullText);
+    final startMatch = _startMarker.firstMatch(fullText);
+    final afterHeader =
+        startMatch != null ? fullText.substring(startMatch.end) : fullText;
+
+    final stopMatch = _stopMarker.firstMatch(afterHeader);
     final searchableText = stopMatch != null
-        ? fullText.substring(0, stopMatch.start)
-        : fullText;
+        ? afterHeader.substring(0, stopMatch.start)
+        : afterHeader;
 
     final results = <ImportedTransactionCandidate>[];
 
