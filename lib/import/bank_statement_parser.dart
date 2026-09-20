@@ -164,6 +164,125 @@ class BankStatementParser {
       }
     }
 
+    // Terzo schema, ultimo ripiego: conti con data scritta a lettere
+    // ("24 ago 2026") e colonne separate entrata/uscita invece di un
+    // unico importo con segno (es. Trade Republic). Ha una logica
+    // abbastanza diversa dagli altri due (serve il saldo progressivo per
+    // dedurre il segno) da meritare un metodo a parte invece di
+    // riusare _buildCandidate.
+    if (results.isEmpty) {
+      results.addAll(
+        _parseTextDateWithRunningBalance(fullText, availableCategoryNames),
+      );
+    }
+
+    return results;
+  }
+
+  // Abbreviazioni italiane dei mesi, come compaiono negli estratti conto
+  // che scrivono la data a lettere invece che in cifre (es. "24 ago 2026").
+  static const Map<String, int> _italianMonthAbbreviations = {
+    'gen': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'mag': 5, 'giu': 6,
+    'lug': 7, 'ago': 8, 'set': 9, 'ott': 10, 'nov': 11, 'dic': 12,
+  };
+
+  // Riga di un estratto con data a lettere e due colonne separate
+  // (entrata/uscita) invece di un unico importo con segno: "giorno mese
+  // anno · tipo · descrizione · importo · saldo dopo il movimento". La
+  // descrizione può andare a capo su più righe (es. il dettaglio di
+  // un'operazione di borsa), quindi qui il punto deve poter attraversare
+  // gli "a capo" (dotAll) — a differenza degli altri due schemi, dove
+  // invece è la cosa che tiene la ricerca dentro i confini di una riga.
+  static final RegExp _rowPatternTextDateWithBalance = RegExp(
+    r'(\d{1,2})\s+([A-Za-zÀ-ÿ]{3})\.?\s+(\d{4})\s+(\S+)\s+(.+?)\s+'
+    r'([\d.,]+)\s*€\s+([\d.,]+)\s*€',
+    dotAll: true,
+  );
+
+  static final RegExp _accountStatementStart = RegExp(
+    r'TRANSAZIONI\s+SUL\s+CONTO',
+    caseSensitive: false,
+  );
+
+  static final RegExp _accountStatementStop = RegExp(
+    r'PANORAMICA\s+DEL\s+SALDO',
+    caseSensitive: false,
+  );
+
+  static final RegExp _openingBalancePattern = RegExp(
+    r'Conto\s+corrente\s+([\d.,]+)\s*€',
+    caseSensitive: false,
+  );
+
+  // A differenza degli altri due schemi, qui l'importo di ogni riga non
+  // porta con sé il segno: sappiamo solo "quanto" è cambiato il saldo,
+  // non se è entrata o uscita. Lo deduciamo confrontando il saldo dopo
+  // ogni movimento con quello del movimento precedente (o con il saldo
+  // iniziale, per il primo): se sale è un'entrata, se scende è
+  // un'uscita. Per questo serve un metodo a parte — richiede uno stato
+  // (il saldo corrente) che passa da una riga alla successiva, cosa che
+  // _buildCandidate non gestisce.
+  static List<ImportedTransactionCandidate> _parseTextDateWithRunningBalance(
+    String fullText,
+    List<String> availableCategoryNames,
+  ) {
+    final openingMatch = _openingBalancePattern.firstMatch(fullText);
+    final openingBalanceValue = openingMatch != null
+        ? double.tryParse(
+            openingMatch.group(1)!.replaceAll('.', '').replaceAll(',', '.'),
+          )
+        : null;
+    if (openingBalanceValue == null) return const [];
+    double runningBalance = openingBalanceValue;
+
+    final startMatch = _accountStatementStart.firstMatch(fullText);
+    final afterHeader =
+        startMatch != null ? fullText.substring(startMatch.end) : fullText;
+    final stopMatch = _accountStatementStop.firstMatch(afterHeader);
+    final searchableText = stopMatch != null
+        ? afterHeader.substring(0, stopMatch.start)
+        : afterHeader;
+
+    final results = <ImportedTransactionCandidate>[];
+
+    for (final match
+        in _rowPatternTextDateWithBalance.allMatches(searchableText)) {
+      final day = int.tryParse(match.group(1)!);
+      final monthAbbr = match.group(2)!.toLowerCase();
+      final year = int.tryParse(match.group(3)!);
+      final month = _italianMonthAbbreviations[monthAbbr];
+      // Ripulisce la descrizione: quando ha attraversato un "a capo"
+      // (dotAll), può contenere spazi/ritorni a capo multipli di fila.
+      final descriptionText =
+          match.group(5)!.trim().replaceAll(RegExp(r'\s+'), ' ');
+      final amountText = match.group(6)!;
+      final newBalanceText = match.group(7)!;
+
+      if (day == null || month == null || year == null) continue;
+      if (descriptionText.isEmpty || _isOnlyADate(descriptionText)) continue;
+
+      final amount = double.tryParse(
+        amountText.replaceAll('.', '').replaceAll(',', '.'),
+      );
+      final newBalance = double.tryParse(
+        newBalanceText.replaceAll('.', '').replaceAll(',', '.'),
+      );
+      if (amount == null || amount == 0 || newBalance == null) continue;
+
+      final isIncome = newBalance > runningBalance;
+      runningBalance = newBalance;
+
+      results.add(
+        ImportedTransactionCandidate(
+          date: DateTime(year, month, day, 12),
+          description: descriptionText,
+          amount: amount,
+          statementAmountWasNegative: !isIncome,
+          category: guessCategory(descriptionText, availableCategoryNames),
+        ),
+      );
+    }
+
     return results;
   }
 

@@ -39,16 +39,25 @@ class _PersonalFinanceAppState extends State<PersonalFinanceApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     AppThemeController.instance.addListener(_themeChanged);
+    // Serve a far ricostruire l'app quando cambia la lingua, così la
+    // direzione del testo (necessaria per l'arabo, RTL) si aggiorna subito
+    // senza dover riavviare l'app.
+    AppLanguageController.instance.addListener(_languageChanged);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     AppThemeController.instance.removeListener(_themeChanged);
+    AppLanguageController.instance.removeListener(_languageChanged);
     super.dispose();
   }
 
   void _themeChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _languageChanged() {
     if (mounted) setState(() {});
   }
 
@@ -146,8 +155,13 @@ class _PersonalFinanceAppState extends State<PersonalFinanceApp>
           ),
         ),
       ),
-      home: const BiometricGate(
-        child: AppShell(),
+      home: Directionality(
+        textDirection: AppLanguageController.instance.isRTL
+            ? TextDirection.rtl
+            : TextDirection.ltr,
+        child: const BiometricGate(
+          child: AppShell(),
+        ),
       ),
     );
   }

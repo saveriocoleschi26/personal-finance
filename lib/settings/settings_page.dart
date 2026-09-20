@@ -189,18 +189,15 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   String _languageSubtitle() {
-    switch (_language.preference) {
-      case AppLanguageController.italian:
-        return l('Italiano');
-      case AppLanguageController.english:
-        return l('Inglese');
-      default:
-        final detected = _language.systemLanguageCode ==
-                AppLanguageController.italian
-            ? l('Italiano')
-            : l('Inglese');
-        return '${l('Automatico')} · $detected';
+    if (_language.preference == AppLanguageController.system) {
+      final detected = AppLanguageController
+              .nativeNames[_language.systemLanguageCode] ??
+          _language.systemLanguageCode;
+      return '${l('Automatico')} · $detected';
     }
+
+    return AppLanguageController.nativeNames[_language.preference] ??
+        _language.preference;
   }
 
   String _themeSubtitle() {
@@ -215,9 +212,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   String _currencySubtitle() {
-    return _currency.currencyCode == AppCurrencyController.usDollar
-        ? l(r'Dollaro statunitense ($)')
-        : l('Euro (€)');
+    return AppCurrencyController.displayLabel(_currency.currencyCode);
   }
 
   IconData get _securityIcon {
@@ -691,6 +686,26 @@ class _LanguageSettingsPageState extends State<LanguageSettingsPage> {
       );
     }
 
+    final languageEntries = <Widget>[
+      languageOption(
+        value: AppLanguageController.system,
+        title: l('Automatico'),
+        subtitle: l('Usa la lingua del telefono'),
+      ),
+    ];
+
+    for (final code in AppLanguageController.supportedLanguages) {
+      languageEntries.add(
+        const Divider(height: 1, indent: 16, endIndent: 16),
+      );
+      languageEntries.add(
+        languageOption(
+          value: code,
+          title: AppLanguageController.nativeNames[code] ?? code,
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l('Lingua dell’app')),
@@ -707,25 +722,7 @@ class _LanguageSettingsPageState extends State<LanguageSettingsPage> {
           ),
           const SizedBox(height: 12),
           _SettingsCard(
-            child: Column(
-              children: [
-                languageOption(
-                  value: AppLanguageController.system,
-                  title: l('Automatico'),
-                  subtitle: l('Usa la lingua del telefono'),
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                languageOption(
-                  value: AppLanguageController.italian,
-                  title: 'Italiano',
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                languageOption(
-                  value: AppLanguageController.english,
-                  title: 'English',
-                ),
-              ],
-            ),
+            child: Column(children: languageEntries),
           ),
         ],
       ),
@@ -854,6 +851,21 @@ class _CurrencySettingsPageState
       );
     }
 
+    final currencyEntries = <Widget>[];
+    for (final code in AppCurrencyController.supportedCurrencies) {
+      if (currencyEntries.isNotEmpty) {
+        currencyEntries.add(
+          const Divider(height: 1, indent: 16, endIndent: 16),
+        );
+      }
+      currencyEntries.add(
+        currencyOption(
+          value: code,
+          title: AppCurrencyController.displayLabel(code),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l('Valuta dell’app')),
@@ -870,19 +882,7 @@ class _CurrencySettingsPageState
           ),
           const SizedBox(height: 12),
           _SettingsCard(
-            child: Column(
-              children: [
-                currencyOption(
-                  value: AppCurrencyController.euro,
-                  title: l('Euro (€)'),
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                currencyOption(
-                  value: AppCurrencyController.usDollar,
-                  title: l(r'Dollaro statunitense ($)'),
-                ),
-              ],
-            ),
+            child: Column(children: currencyEntries),
           ),
           const SizedBox(height: 12),
           Padding(

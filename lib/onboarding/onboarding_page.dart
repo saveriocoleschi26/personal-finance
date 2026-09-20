@@ -1,7 +1,12 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../currency/app_currency.dart';
 import '../database/database_service.dart';
+import '../import/import_review_page.dart';
 import '../localization/app_language.dart';
+
+enum _StepKind { info, language, currency, importChoice }
 
 class OnboardingPage extends StatefulWidget {
   final bool markCompletedOnFinish;
@@ -19,8 +24,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final PageController pageController = PageController();
 
   int currentPage = 0;
+  bool _importingFromOnboarding = false;
 
   List<_OnboardingStep> get steps => [
+        const _OnboardingStep(
+          kind: _StepKind.language,
+          icon: Icons.language_rounded,
+        ),
+        const _OnboardingStep(
+          kind: _StepKind.currency,
+          icon: Icons.payments_outlined,
+        ),
         _OnboardingStep(
           icon: Icons.account_balance_wallet_outlined,
           title: l('Benvenuto in Liblo'),
@@ -68,7 +82,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
           icon: Icons.tune_rounded,
           title: l('Personalizza Liblo'),
           description: l(
-            'Nelle Impostazioni puoi gestire categorie, lingua, valuta e protezione biometrica. La scelta tra euro e dollari cambia il simbolo, non converte gli importi.',
+            'Nelle Impostazioni puoi gestire categorie, lingua, valuta e protezione biometrica. La scelta della valuta cambia solo il simbolo, non converte gli importi.',
+          ),
+        ),
+        const _OnboardingStep(
+          kind: _StepKind.importChoice,
+          icon: Icons.file_upload_outlined,
+        ),
+        _OnboardingStep(
+          icon: Icons.receipt_long_outlined,
+          title: l('Scansiona lo scontrino'),
+          description: l(
+            'Quando aggiungi un movimento, puoi fotografare lo scontrino invece di scrivere tutto a mano: Liblo prova a leggere automaticamente importo, data ed esercente, così devi solo controllare prima di salvare.',
           ),
         ),
         _OnboardingStep(
@@ -119,6 +144,34 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
+  Future<void> _importFromStatementDuringOnboarding() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+
+    final path = result?.files.single.path;
+    if (path == null) return;
+
+    setState(() {
+      _importingFromOnboarding = true;
+    });
+
+    if (!mounted) return;
+
+    await Navigator.of(context).push<int>(
+      MaterialPageRoute(
+        builder: (context) => ImportReviewPage(filePath: path),
+      ),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _importingFromOnboarding = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -152,44 +205,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            color: colors.primaryContainer,
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: Icon(
-                            step.icon,
-                            size: 46,
-                            color: colors.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        Text(
-                          step.title,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 26,
-                            height: 1.15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          step.description,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            height: 1.45,
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: switch (step.kind) {
+                      _StepKind.language => _buildLanguageStep(colors),
+                      _StepKind.currency => _buildCurrencyStep(colors),
+                      _StepKind.importChoice =>
+                        _buildImportChoiceStep(colors),
+                      _StepKind.info => _buildInfoStep(colors, step),
+                    },
                   );
                 },
               ),
@@ -248,16 +270,328 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ),
     );
   }
+
+  Widget _buildInfoStep(ColorScheme colors, _OnboardingStep step) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 96,
+          height: 96,
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Icon(
+            step.icon,
+            size: 46,
+            color: colors.primary,
+          ),
+        ),
+        const SizedBox(height: 32),
+        Text(
+          step.title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 26,
+            height: 1.15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          step.description,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.45,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepHeader(
+    ColorScheme colors, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Icon(icon, size: 34, color: colors.primary),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 22,
+            height: 1.15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.4,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  Widget _selectableOption(
+    ColorScheme colors, {
+    required String title,
+    String? subtitle,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: selected ? colors.primaryContainer : colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? colors.primary : colors.outlineVariant,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: selected
+                              ? colors.onPrimaryContainer
+                              : colors.onSurface,
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: selected
+                                ? colors.onPrimaryContainer
+                                : colors.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: selected ? colors.primary : colors.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageStep(ColorScheme colors) {
+    return AnimatedBuilder(
+      animation: AppLanguageController.instance,
+      builder: (context, _) {
+        final controller = AppLanguageController.instance;
+        final detected =
+            AppLanguageController.nativeNames[controller.systemLanguageCode] ??
+                controller.systemLanguageCode;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildStepHeader(
+              colors,
+              icon: Icons.language_rounded,
+              title: l('Scegli la lingua'),
+              subtitle:
+                  l('Puoi cambiarla in qualsiasi momento dalle Impostazioni.'),
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  _selectableOption(
+                    colors,
+                    title: l('Automatico'),
+                    subtitle: '${l('Usa la lingua del telefono')} · $detected',
+                    selected:
+                        controller.preference == AppLanguageController.system,
+                    onTap: () => controller
+                        .setPreference(AppLanguageController.system),
+                  ),
+                  for (final code in AppLanguageController.supportedLanguages)
+                    _selectableOption(
+                      colors,
+                      title: AppLanguageController.nativeNames[code] ?? code,
+                      selected: controller.preference == code,
+                      onTap: () => controller.setPreference(code),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCurrencyStep(ColorScheme colors) {
+    return AnimatedBuilder(
+      animation: AppCurrencyController.instance,
+      builder: (context, _) {
+        final controller = AppCurrencyController.instance;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildStepHeader(
+              colors,
+              icon: Icons.payments_outlined,
+              title: l('Scegli la valuta'),
+              subtitle: l(
+                'Cambia solo il simbolo mostrato: gli importi non vengono convertiti. Puoi cambiarla in qualsiasi momento dalle Impostazioni.',
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final code in AppCurrencyController.supportedCurrencies)
+                    _selectableOption(
+                      colors,
+                      title: AppCurrencyController.displayLabel(code),
+                      selected: controller.currencyCode == code,
+                      onTap: () => controller.setCurrencyCode(code),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildImportChoiceStep(ColorScheme colors) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 96,
+          height: 96,
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Icon(
+            Icons.file_upload_outlined,
+            size: 46,
+            color: colors.primary,
+          ),
+        ),
+        const SizedBox(height: 32),
+        Text(
+          l('Importa i tuoi movimenti'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 26,
+            height: 1.15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          l(
+            'Vuoi importare i movimenti di questo mese da un estratto conto, oppure preferisci inserirli tu man mano?',
+          ),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.45,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 28),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _importingFromOnboarding
+                ? null
+                : _importFromStatementDuringOnboarding,
+            icon: _importingFromOnboarding
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.file_upload_outlined),
+            label: Text(l('Importa da estratto conto (PDF)')),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          l(
+            'Funziona con PDF con testo selezionabile (non foto o scansioni).',
+          ),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.tonal(
+            onPressed: next,
+            child: Text(l('Preferisco inserirli manualmente')),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _OnboardingStep {
+  final _StepKind kind;
   final IconData icon;
   final String title;
   final String description;
 
   const _OnboardingStep({
+    this.kind = _StepKind.info,
     required this.icon,
-    required this.title,
-    required this.description,
+    this.title = '',
+    this.description = '',
   });
 }
