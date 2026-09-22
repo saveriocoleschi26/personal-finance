@@ -14,6 +14,21 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>it</string>
+		<string>en-US</string>
+		<string>en-GB</string>
+		<string>fr</string>
+		<string>es</string>
+		<string>de</string>
+		<string>zh-Hans</string>
+		<string>pt-PT</string>
+		<string>pt-BR</string>
+		<string>ja</string>
+		<string>ar</string>
+		<string>ru</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>Liblo</string>
 	<key>CFBundlePackageType</key>
