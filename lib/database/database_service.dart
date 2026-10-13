@@ -729,6 +729,66 @@ class DatabaseService {
     return result;
   }
 
+  /// Elimina più movimenti insieme, in un'unica transazione: o vengono
+  /// eliminati tutti o nessuno. Come [deleteTransaction], rimette "da
+  /// pagare" le scadenze e le spese pianificate collegate ai movimenti
+  /// eliminati.
+  ///
+  /// Gli id vengono elaborati a blocchi perché SQLite accetta un numero
+  /// limitato di parametri per singola query, e una selezione multipla
+  /// (per esempio dopo un import da estratto conto) può contenere centinaia
+  /// di movimenti.
+  Future<int> deleteTransactions(List<int> ids) async {
+    if (ids.isEmpty) return 0;
+
+    final db = await database;
+    const chunkSize = 500;
+
+    final deleted = await db.transaction((txn) async {
+      var count = 0;
+
+      for (var start = 0; start < ids.length; start += chunkSize) {
+        final end = (start + chunkSize < ids.length)
+            ? start + chunkSize
+            : ids.length;
+        final chunk = ids.sublist(start, end);
+        final placeholders = List.filled(chunk.length, '?').join(', ');
+
+        await txn.update(
+          'annual_expenses',
+          {
+            'is_paid': 0,
+            'paid_transaction_id': null,
+          },
+          where: 'paid_transaction_id IN ($placeholders)',
+          whereArgs: chunk,
+        );
+
+        await txn.update(
+          'planned_expenses',
+          {
+            'is_paid': 0,
+            'paid_transaction_id': null,
+          },
+          where: 'paid_transaction_id IN ($placeholders)',
+          whereArgs: chunk,
+        );
+
+        count += await txn.delete(
+          'transactions',
+          where: 'id IN ($placeholders)',
+          whereArgs: chunk,
+        );
+      }
+
+      return count;
+    });
+
+    unawaited(_syncToICloud());
+
+    return deleted;
+  }
+
   Future<int> updateTransaction(
     FinanceTransaction transaction,
   ) async {

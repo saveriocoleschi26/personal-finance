@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'add_transaction_page.dart';
 import 'annual_expenses/annual_expense.dart';
@@ -109,6 +110,17 @@ class _HomePageState extends State<HomePage>
   bool searchLoading = false;
   Timer? _searchDebounce;
 
+  // Selezione multipla: attiva tenendo premuto un movimento o col pulsante
+  // "Seleziona" nell'intestazione della lista.
+  bool isSelectionMode = false;
+  final Set<int> selectedTransactionIds = {};
+
+  // Movimenti eliminati con lo swipe ma non ancora cancellati davvero dal
+  // database: restano qui per qualche secondo, il tempo di premere
+  // "Annulla" nella barra in basso. Finché sono in questo insieme vengono
+  // nascosti da liste e totali.
+  final Set<int> _pendingDeletionIds = {};
+
   Map<String, ExpenseCategory> _categoriesByName = {};
 
   late DateTime selectedMonth;
@@ -196,6 +208,8 @@ class _HomePageState extends State<HomePage>
       isLoading = true;
       touchedCategoryIndex = -1;
       showAllTransactions = false;
+      isSelectionMode = false;
+      selectedTransactionIds.clear();
     });
 
     await loadSelectedMonthData();
@@ -213,6 +227,8 @@ class _HomePageState extends State<HomePage>
   void toggleSearch() {
     setState(() {
       isSearching = !isSearching;
+      isSelectionMode = false;
+      selectedTransactionIds.clear();
       if (!isSearching) {
         _searchDebounce?.cancel();
         searchController.clear();
@@ -286,6 +302,8 @@ class _HomePageState extends State<HomePage>
       isLoading = true;
       touchedCategoryIndex = -1;
       showAllTransactions = false;
+      isSelectionMode = false;
+      selectedTransactionIds.clear();
     });
 
     await loadSelectedMonthData();
@@ -317,6 +335,8 @@ class _HomePageState extends State<HomePage>
       isLoading = true;
       touchedCategoryIndex = -1;
       showAllTransactions = false;
+      isSelectionMode = false;
+      selectedTransactionIds.clear();
     });
 
     await loadSelectedMonthData();
@@ -335,6 +355,8 @@ class _HomePageState extends State<HomePage>
       isLoading = true;
       touchedCategoryIndex = -1;
       showAllTransactions = false;
+      isSelectionMode = false;
+      selectedTransactionIds.clear();
     });
 
     await loadSelectedMonthData();
@@ -388,7 +410,14 @@ class _HomePageState extends State<HomePage>
 
       setState(() {
         transactions.clear();
-        transactions.addAll(savedTransactions);
+        // Un aggiornamento che arriva mentre un movimento è appena stato
+        // eliminato con lo swipe (e si può ancora annullare) non deve
+        // farlo ricomparire.
+        transactions.addAll(
+          savedTransactions.where(
+            (t) => !_pendingDeletionIds.contains(t.id),
+          ),
+        );
 
         savingsGoal = savedBudget['savingsGoal'] ?? 0;
         monthlyCarryover = savedCarryover;
@@ -697,6 +726,16 @@ class _HomePageState extends State<HomePage>
                           // indietro e la si riapre.
                           setLocalState(() {});
                         },
+                        onSwipeDelete: () => swipeDeleteTransaction(
+                          categoryTransactions[i],
+                          onLocalChange: () {
+                            // La barra "Annulla" può chiudersi quando
+                            // l'utente ha già lasciato questa schermata.
+                            if (statefulContext.mounted) {
+                              setLocalState(() {});
+                            }
+                          },
+                        ),
                       ),
                     ),
             );
@@ -912,6 +951,212 @@ class _HomePageState extends State<HomePage>
 
     if (!mounted) return;
     _notifyOtherPages();
+  }
+
+  /// Movimenti attualmente mostrati nella lista della Home: quelli della
+  /// ricerca se è attiva, altrimenti quelli del mese selezionato. È
+  /// l'insieme su cui agisce "Seleziona tutto".
+  List<FinanceTransaction> get _shownTransactions =>
+      isSearching ? searchResults : transactions;
+
+  void _refreshSearchIfActive() {
+    if (isSearching && searchController.text.trim().isNotEmpty) {
+      onSearchQueryChanged(searchController.text);
+    }
+  }
+
+  /// Eliminazione con lo swipe, in stile iOS: il movimento sparisce subito
+  /// dalla lista, e per qualche secondo compare "Annulla" in basso. Solo
+  /// quando la barra si chiude senza annullare il movimento viene
+  /// cancellato davvero dal database: così uno swipe fatto per sbaglio non
+  /// costa nulla, senza però dover confermare ogni volta con un popup.
+  ///
+  /// [onLocalChange] serve alle schermate secondarie (es. la lista per
+  /// categoria) che hanno un proprio stato da aggiornare oltre alla Home.
+  Future<void> swipeDeleteTransaction(
+    FinanceTransaction transaction, {
+    VoidCallback? onLocalChange,
+  }) async {
+    final id = transaction.id;
+    if (id == null) return;
+
+    // Va fatto subito, senza attese: il widget che è stato trascinato via
+    // deve uscire dalla lista nello stesso frame.
+    setState(() {
+      _pendingDeletionIds.add(id);
+      transactions.removeWhere((t) => t.id == id);
+      searchResults = searchResults.where((t) => t.id != id).toList();
+    });
+    onLocalChange?.call();
+
+    final messenger = ScaffoldMessenger.of(context);
+    // Se c'era già un'altra barra (per esempio un'eliminazione precedente
+    // ancora annullabile), la chiudiamo: la sua eliminazione viene
+    // confermata e questa nuova prende il suo posto.
+    messenger.hideCurrentSnackBar();
+
+    var undone = false;
+    var closed = false;
+
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        content: Text(l('Movimento eliminato')),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: l('Annulla'),
+          onPressed: () {
+            undone = true;
+          },
+        ),
+      ),
+    );
+
+    // Chiusura esplicita dopo 4 secondi: non ci affidiamo alla scadenza
+    // automatica della barra, che con un pulsante d'azione in alcune
+    // versioni di Flutter resta aperta finché non la si tocca.
+    Timer(const Duration(seconds: 4), () {
+      if (!closed) controller.close();
+    });
+
+    await controller.closed;
+    closed = true;
+
+    if (undone) {
+      _pendingDeletionIds.remove(id);
+      await loadSelectedMonthData();
+      _refreshSearchIfActive();
+      onLocalChange?.call();
+      return;
+    }
+
+    await DatabaseService.instance.deleteTransactions([id]);
+    _pendingDeletionIds.remove(id);
+
+    await loadSelectedMonthData();
+    if (!mounted) return;
+    _notifyOtherPages();
+    onLocalChange?.call();
+  }
+
+  void enterSelectionMode([FinanceTransaction? firstSelected]) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      isSelectionMode = true;
+      // In selezione mostriamo tutti i movimenti del mese, non solo i
+      // primi quattro, altrimenti "Seleziona tutto" agirebbe su elementi
+      // che l'utente non vede.
+      showAllTransactions = true;
+      selectedTransactionIds.clear();
+      final id = firstSelected?.id;
+      if (id != null) selectedTransactionIds.add(id);
+    });
+  }
+
+  void exitSelectionMode() {
+    setState(() {
+      isSelectionMode = false;
+      selectedTransactionIds.clear();
+    });
+  }
+
+  void toggleTransactionSelection(FinanceTransaction transaction) {
+    final id = transaction.id;
+    if (id == null) return;
+
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (!selectedTransactionIds.remove(id)) {
+        selectedTransactionIds.add(id);
+      }
+    });
+  }
+
+  bool get _allShownSelected {
+    final shownIds =
+        _shownTransactions.map((t) => t.id).whereType<int>().toSet();
+    return shownIds.isNotEmpty &&
+        shownIds.every(selectedTransactionIds.contains);
+  }
+
+  void toggleSelectAllShown() {
+    setState(() {
+      if (_allShownSelected) {
+        selectedTransactionIds.clear();
+      } else {
+        selectedTransactionIds.addAll(
+          _shownTransactions.map((t) => t.id).whereType<int>(),
+        );
+      }
+    });
+  }
+
+  /// Eliminazione in blocco dei movimenti selezionati. A differenza dello
+  /// swipe chiede conferma: cancellare molti movimenti insieme è un gesto
+  /// più pesante, come in Foto o in Mail su iOS.
+  Future<void> deleteSelectedTransactions() async {
+    final ids = selectedTransactionIds.toList();
+    if (ids.isEmpty) return;
+
+    final count = ids.length;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            count == 1
+                ? l('Eliminare movimento?')
+                : l('Eliminare {n} movimenti?').replaceAll('{n}', '$count'),
+          ),
+          content: Text(
+            count == 1
+                ? l('Il movimento selezionato verrà eliminato definitivamente.')
+                : l('I {n} movimenti selezionati verranno eliminati definitivamente.')
+                    .replaceAll('{n}', '$count'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l('Annulla')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              ),
+              child: Text(l('Elimina')),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    await DatabaseService.instance.deleteTransactions(ids);
+
+    if (!mounted) return;
+    setState(() {
+      isSelectionMode = false;
+      selectedTransactionIds.clear();
+    });
+
+    await loadSelectedMonthData();
+    _refreshSearchIfActive();
+
+    if (!mounted) return;
+    _notifyOtherPages();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          count == 1
+              ? l('Movimento eliminato')
+              : l('{n} movimenti eliminati').replaceAll('{n}', '$count'),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> showTransactionActions(
@@ -1302,7 +1547,24 @@ class _HomePageState extends State<HomePage>
     return Scaffold(
       backgroundColor: hc.pageBackground,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: isCurrentMonth && !isLoading
+      floatingActionButton: isSelectionMode
+          ? FloatingActionButton.extended(
+              onPressed: selectedTransactionIds.isEmpty
+                  ? null
+                  : deleteSelectedTransactions,
+              backgroundColor: selectedTransactionIds.isEmpty
+                  ? hc.iconMuted
+                  : Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: Text(
+                selectedTransactionIds.isEmpty
+                    ? l('Elimina')
+                    : '${l('Elimina')} (${selectedTransactionIds.length})',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            )
+          : isCurrentMonth && !isLoading
           ? FloatingActionButton(
               onPressed: showAddTransactionOptions,
               tooltip: l('Aggiungi movimento'),
@@ -1351,7 +1613,14 @@ class _HomePageState extends State<HomePage>
           ),
         ],
       ),
-      body: ListView(
+      // In modalità selezione il gesto "indietro" (o il tasto indietro su
+      // Android) chiude la selezione invece di uscire dall'app.
+      body: PopScope(
+        canPop: !isSelectionMode,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && isSelectionMode) exitSelectionMode();
+        },
+        child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 2, 18, 112),
         children: [
             MonthSelector(
@@ -1486,7 +1755,9 @@ class _HomePageState extends State<HomePage>
                         });
                       }
                     : null,
-                onTransactionTap: showTransactionActions,
+                onTransactionTap: isSelectionMode
+                    ? toggleTransactionSelection
+                    : showTransactionActions,
                 carryoverAmount:
                     monthlyCarryover != 0 ? monthlyCarryover : null,
                 carryoverFormattedAmount:
@@ -1502,9 +1773,20 @@ class _HomePageState extends State<HomePage>
                 onSearchQueryChanged: onSearchQueryChanged,
                 searchResults: searchResults,
                 searchLoading: searchLoading,
+                isSelectionMode: isSelectionMode,
+                selectedIds: selectedTransactionIds,
+                allShownSelected: _allShownSelected,
+                onEnterSelection: enterSelectionMode,
+                onExitSelection: exitSelectionMode,
+                onToggleSelectAll: toggleSelectAllShown,
+                onTransactionLongPress: (t) => isSelectionMode
+                    ? toggleTransactionSelection(t)
+                    : enterSelectionMode(t),
+                onSwipeDelete: (t) => swipeDeleteTransaction(t),
               ),
             ],
           ],
+        ),
       ),
     );
   }
@@ -1988,6 +2270,14 @@ class RecentTransactionsCard extends StatelessWidget {
   final ValueChanged<String> onSearchQueryChanged;
   final List<FinanceTransaction> searchResults;
   final bool searchLoading;
+  final bool isSelectionMode;
+  final Set<int> selectedIds;
+  final bool allShownSelected;
+  final VoidCallback onEnterSelection;
+  final VoidCallback onExitSelection;
+  final VoidCallback onToggleSelectAll;
+  final ValueChanged<FinanceTransaction> onTransactionLongPress;
+  final ValueChanged<FinanceTransaction> onSwipeDelete;
 
   const RecentTransactionsCard({
     super.key,
@@ -2011,7 +2301,60 @@ class RecentTransactionsCard extends StatelessWidget {
     required this.onSearchQueryChanged,
     required this.searchResults,
     required this.searchLoading,
+    required this.isSelectionMode,
+    required this.selectedIds,
+    required this.allShownSelected,
+    required this.onEnterSelection,
+    required this.onExitSelection,
+    required this.onToggleSelectAll,
+    required this.onTransactionLongPress,
+    required this.onSwipeDelete,
   });
+
+  Widget _buildSelectionHeader(HomeColors hc) {
+    final count = selectedIds.length;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            count == 0
+                ? l('Seleziona movimenti')
+                : count == 1
+                ? l('1 selezionato')
+                : l('{n} selezionati').replaceAll('{n}', '$count'),
+            style: TextStyle(
+              color: hc.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: onToggleSelectAll,
+          style: TextButton.styleFrom(
+            foregroundColor: hc.teal,
+            visualDensity: VisualDensity.compact,
+          ),
+          child: Text(
+            allShownSelected ? l('Deseleziona tutto') : l('Seleziona tutto'),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        TextButton(
+          onPressed: onExitSelection,
+          style: TextButton.styleFrom(
+            foregroundColor: hc.teal,
+            visualDensity: VisualDensity.compact,
+          ),
+          child: Text(
+            l('Fine'),
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2019,6 +2362,9 @@ class RecentTransactionsCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
+      // Taglia lo sfondo rosso dello swipe sugli angoli arrotondati della
+      // card, invece di farlo sbordare sull'ultimo movimento della lista.
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: hc.cardBackground,
         borderRadius: BorderRadius.circular(24),
@@ -2035,7 +2381,9 @@ class RecentTransactionsCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 17, 12, 9),
-            child: isSearching
+            child: isSelectionMode
+                ? _buildSelectionHeader(hc)
+                : isSearching
                 ? Row(
                     children: [
                       Expanded(
@@ -2084,6 +2432,14 @@ class RecentTransactionsCard extends StatelessWidget {
                         tooltip: le('Cerca nello storico', 'Search history'),
                         visualDensity: VisualDensity.compact,
                       ),
+                      if (transactions.isNotEmpty)
+                        IconButton(
+                          onPressed: onEnterSelection,
+                          icon: const Icon(Icons.checklist_rounded),
+                          color: hc.teal,
+                          tooltip: l('Seleziona'),
+                          visualDensity: VisualDensity.compact,
+                        ),
                       if (onToggleAll != null)
                         TextButton(
                           onPressed: onToggleAll,
@@ -2125,6 +2481,10 @@ class RecentTransactionsCard extends StatelessWidget {
               categoryIcon: categoryIcon,
               categoryColor: categoryColor,
               onTransactionTap: onTransactionTap,
+              isSelectionMode: isSelectionMode,
+              selectedIds: selectedIds,
+              onTransactionLongPress: onTransactionLongPress,
+              onSwipeDelete: onSwipeDelete,
             )
           else ...[
             if (carryoverAmount != null) ...[
@@ -2159,6 +2519,10 @@ class RecentTransactionsCard extends StatelessWidget {
                   categoryIcon: categoryIcon(transactions[i].category),
                   categoryColor: categoryColor(transactions[i].category),
                   onTap: () => onTransactionTap(transactions[i]),
+                  onLongPress: () => onTransactionLongPress(transactions[i]),
+                  onSwipeDelete: () => onSwipeDelete(transactions[i]),
+                  selectionMode: isSelectionMode,
+                  selected: selectedIds.contains(transactions[i].id),
                 ),
                 if (i != transactions.length - 1)
                   Divider(
@@ -2185,6 +2549,10 @@ class _SearchResultsSection extends StatelessWidget {
   final IconData Function(String) categoryIcon;
   final Color Function(String) categoryColor;
   final ValueChanged<FinanceTransaction> onTransactionTap;
+  final bool isSelectionMode;
+  final Set<int> selectedIds;
+  final ValueChanged<FinanceTransaction> onTransactionLongPress;
+  final ValueChanged<FinanceTransaction> onSwipeDelete;
 
   const _SearchResultsSection({
     required this.query,
@@ -2195,6 +2563,10 @@ class _SearchResultsSection extends StatelessWidget {
     required this.categoryIcon,
     required this.categoryColor,
     required this.onTransactionTap,
+    required this.isSelectionMode,
+    required this.selectedIds,
+    required this.onTransactionLongPress,
+    required this.onSwipeDelete,
   });
 
   @override
@@ -2253,6 +2625,10 @@ class _SearchResultsSection extends StatelessWidget {
             categoryIcon: categoryIcon(results[i].category),
             categoryColor: categoryColor(results[i].category),
             onTap: () => onTransactionTap(results[i]),
+            onLongPress: () => onTransactionLongPress(results[i]),
+            onSwipeDelete: () => onSwipeDelete(results[i]),
+            selectionMode: isSelectionMode,
+            selected: selectedIds.contains(results[i].id),
           ),
           if (i != results.length - 1)
             Divider(
@@ -2276,6 +2652,16 @@ class TransactionItem extends StatelessWidget {
   final Color categoryColor;
   final VoidCallback onTap;
 
+  /// Pressione lunga: entra in modalità selezione multipla.
+  final VoidCallback? onLongPress;
+
+  /// Se presente, il movimento si può eliminare trascinandolo verso
+  /// sinistra (swipe in stile iOS). Disattivato in modalità selezione.
+  final VoidCallback? onSwipeDelete;
+
+  final bool selectionMode;
+  final bool selected;
+
   const TransactionItem({
     super.key,
     required this.transaction,
@@ -2284,6 +2670,10 @@ class TransactionItem extends StatelessWidget {
     required this.categoryIcon,
     required this.categoryColor,
     required this.onTap,
+    this.onLongPress,
+    this.onSwipeDelete,
+    this.selectionMode = false,
+    this.selected = false,
   });
 
   @override
@@ -2292,12 +2682,33 @@ class TransactionItem extends StatelessWidget {
     final isIncome = transaction.isIncome;
     final amountColor = isIncome ? hc.green : hc.textPrimaryStrong;
 
-    return InkWell(
+    final row = InkWell(
       onTap: onTap,
-      child: Padding(
+      onLongPress: onLongPress,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        color: selected
+            ? hc.teal.withValues(alpha: 0.08)
+            : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         child: Row(
           children: [
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              child: selectionMode
+                  ? Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Icon(
+                        selected
+                            ? Icons.check_circle_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        size: 24,
+                        color: selected ? hc.teal : hc.iconMuted,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             Container(
               width: 43,
               height: 43,
@@ -2356,6 +2767,43 @@ class TransactionItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (onSwipeDelete == null || selectionMode || transaction.id == null) {
+      return row;
+    }
+
+    final errorColor = Theme.of(context).colorScheme.error;
+
+    return Dismissible(
+      key: ValueKey('transaction-${transaction.id}'),
+      direction: DismissDirection.endToStart,
+      dismissThresholds: const {DismissDirection.endToStart: 0.35},
+      background: Container(
+        color: errorColor,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l('Elimina'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.white,
+            ),
+          ],
+        ),
+      ),
+      onDismissed: (_) => onSwipeDelete!(),
+      child: row,
     );
   }
 }
