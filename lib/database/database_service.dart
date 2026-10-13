@@ -50,7 +50,7 @@ class DatabaseService {
 
     return openDatabase(
       path,
-      version: 11,
+      version: 12,
       onCreate: _createDatabase,
       onUpgrade: _upgradeDatabase,
     );
@@ -72,6 +72,7 @@ class DatabaseService {
       includePreviousMonth: false,
     );
     await _createTransactionIndexesV11(db);
+    await _createCarryoverResetsTableV12(db);
   }
 
   Future<void> _upgradeDatabase(
@@ -125,6 +126,10 @@ class DatabaseService {
 
     if (oldVersion < 11) {
       await _createTransactionIndexesV11(db);
+    }
+
+    if (oldVersion < 12) {
+      await _createCarryoverResetsTableV12(db);
     }
   }
 
@@ -312,6 +317,20 @@ class DatabaseService {
         month_key TEXT PRIMARY KEY,
         amount_cents INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL
+      )
+      ''',
+    );
+  }
+
+  // Mesi per i quali l'utente ha eliminato il saldo riportato: il
+  // riporto che entra in quel mese vale zero, e da lì in poi il conteggio
+  // riparte da quel valore azzerato.
+  Future<void> _createCarryoverResetsTableV12(Database db) async {
+    await db.execute(
+      '''
+      CREATE TABLE IF NOT EXISTS carryover_resets (
+        month_key TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL
       )
       ''',
     );
@@ -927,6 +946,12 @@ class DatabaseService {
       return 0;
     }
 
+    // Mesi in cui l'utente ha eliminato il saldo riportato: il riporto in
+    // ingresso di quel mese viene azzerato, e il conteggio dei mesi
+    // successivi riparte da zero (come se quei soldi non ci fossero mai
+    // stati), invece di tornare a comparire al mese dopo.
+    final resetMonthKeys = await _getCarryoverResetMonthKeys(db);
+
     final annualMaps = await db.query('annual_expenses');
     final annualExpenses = annualMaps
         .map(AnnualExpense.fromMap)
@@ -999,6 +1024,10 @@ class DatabaseService {
 
       carryoverCents = MonthlyBalanceCalculator.toCents(closingBalance);
 
+      if (resetMonthKeys.contains(_monthKey(nextMonth))) {
+        carryoverCents = 0;
+      }
+
       await db.insert(
         'monthly_carryovers',
         {
@@ -1013,6 +1042,81 @@ class DatabaseService {
     }
 
     return MonthlyBalanceCalculator.fromCents(carryoverCents);
+  }
+
+  Future<Set<String>> _getCarryoverResetMonthKeys(Database db) async {
+    final rows = await db.query(
+      'carryover_resets',
+      columns: ['month_key'],
+    );
+
+    return rows
+        .map((row) => row['month_key'] as String?)
+        .whereType<String>()
+        .toSet();
+  }
+
+  /// Elimina il saldo riportato in ingresso del mese indicato: da quel
+  /// mese in poi il riporto riparte da zero. Serve all'utente che non
+  /// vuole trascinarsi dietro il disponibile (o il rosso) del mese
+  /// precedente.
+  Future<void> resetCarryoverForMonth(DateTime month) async {
+    final db = await database;
+    final monthKey = _monthKey(DateTime(month.year, month.month, 1));
+
+    await db.insert(
+      'carryover_resets',
+      {
+        'month_key': monthKey,
+        'created_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    // La copia memorizzata va riallineata subito: il calcolo la riscrive
+    // al prossimo giro, ma nel frattempo nessuno deve leggere il vecchio
+    // valore.
+    await db.insert(
+      'monthly_carryovers',
+      {
+        'month_key': monthKey,
+        'amount_cents': 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    unawaited(_syncToICloud());
+  }
+
+  /// Annulla l'eliminazione del saldo riportato (il pulsante "Annulla"
+  /// della barra che compare dopo lo swipe).
+  Future<void> restoreCarryoverForMonth(DateTime month) async {
+    final db = await database;
+    final monthKey = _monthKey(DateTime(month.year, month.month, 1));
+
+    await db.delete(
+      'carryover_resets',
+      where: 'month_key = ?',
+      whereArgs: [monthKey],
+    );
+
+    unawaited(_syncToICloud());
+  }
+
+  Future<bool> isCarryoverResetForMonth(DateTime month) async {
+    final db = await database;
+    final monthKey = _monthKey(DateTime(month.year, month.month, 1));
+
+    final rows = await db.query(
+      'carryover_resets',
+      columns: ['month_key'],
+      where: 'month_key = ?',
+      whereArgs: [monthKey],
+      limit: 1,
+    );
+
+    return rows.isNotEmpty;
   }
 
   // =====================================================

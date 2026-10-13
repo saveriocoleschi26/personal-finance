@@ -3180,6 +3180,96 @@ const Map<String, Map<String, String>> _translations = {
     AppLanguageController.arabic: 'تم حذف الحركات ({n})',
     AppLanguageController.russian: 'Удалено операций: {n}',
   },
+  'Eliminare il saldo riportato?': {
+    AppLanguageController.englishUS: 'Delete carried-over balance?',
+    AppLanguageController.french: 'Supprimer le solde reporté ?',
+    AppLanguageController.spanish: '¿Eliminar el saldo arrastrado?',
+    AppLanguageController.german: 'Übertragenen Saldo löschen?',
+    AppLanguageController.chineseSimplified: '删除结转余额?',
+    AppLanguageController.portuguesePT: 'Eliminar o saldo transportado?',
+    AppLanguageController.portugueseBR: 'Excluir o saldo transportado?',
+    AppLanguageController.japanese: '繰越残高を削除しますか?',
+    AppLanguageController.arabic: 'حذف الرصيد المُرحَّل؟',
+    AppLanguageController.russian: 'Удалить перенесённый остаток?',
+  },
+  'Il saldo riportato dal mese precedente non verrà più conteggiato da questo mese in poi.':
+      {
+    AppLanguageController.englishUS:
+        'The balance carried over from last month will no longer be counted from this month on.',
+    AppLanguageController.french:
+        'Le solde reporté du mois précédent ne sera plus compté à partir de ce mois-ci.',
+    AppLanguageController.spanish:
+        'El saldo arrastrado del mes anterior ya no se contará a partir de este mes.',
+    AppLanguageController.german:
+        'Der aus dem Vormonat übertragene Saldo wird ab diesem Monat nicht mehr berücksichtigt.',
+    AppLanguageController.chineseSimplified: '从本月起,上月结转的余额将不再计入。',
+    AppLanguageController.portuguesePT:
+        'O saldo transportado do mês anterior deixará de ser contabilizado a partir deste mês.',
+    AppLanguageController.portugueseBR:
+        'O saldo transportado do mês anterior não será mais considerado a partir deste mês.',
+    AppLanguageController.japanese: '今月以降、前月から繰り越された残高は計算に含まれなくなります。',
+    AppLanguageController.arabic:
+        'لن يُحتسب الرصيد المُرحَّل من الشهر السابق بدءًا من هذا الشهر.',
+    AppLanguageController.russian:
+        'Начиная с этого месяца перенесённый остаток за прошлый месяц больше не будет учитываться.',
+  },
+  'Saldo riportato eliminato': {
+    AppLanguageController.englishUS: 'Carried-over balance deleted',
+    AppLanguageController.french: 'Solde reporté supprimé',
+    AppLanguageController.spanish: 'Saldo arrastrado eliminado',
+    AppLanguageController.german: 'Übertragener Saldo gelöscht',
+    AppLanguageController.chineseSimplified: '已删除结转余额',
+    AppLanguageController.portuguesePT: 'Saldo transportado eliminado',
+    AppLanguageController.portugueseBR: 'Saldo transportado excluído',
+    AppLanguageController.japanese: '繰越残高を削除しました',
+    AppLanguageController.arabic: 'تم حذف الرصيد المُرحَّل',
+    AppLanguageController.russian: 'Перенесённый остаток удалён',
+  },
+  'Eliminare {n} elementi?': {
+    AppLanguageController.englishUS: 'Delete {n} items?',
+    AppLanguageController.french: 'Supprimer {n} éléments ?',
+    AppLanguageController.spanish: '¿Eliminar {n} elementos?',
+    AppLanguageController.german: '{n} Elemente löschen?',
+    AppLanguageController.chineseSimplified: '删除 {n} 个项目?',
+    AppLanguageController.portuguesePT: 'Eliminar {n} elementos?',
+    AppLanguageController.portugueseBR: 'Excluir {n} itens?',
+    AppLanguageController.japanese: '{n}件の項目を削除しますか?',
+    AppLanguageController.arabic: 'حذف {n} عنصرًا؟',
+    AppLanguageController.russian: 'Удалить элементов: {n}?',
+  },
+  'Gli elementi selezionati, compreso il saldo riportato, verranno eliminati definitivamente.':
+      {
+    AppLanguageController.englishUS:
+        'The selected items, including the carried-over balance, will be permanently deleted.',
+    AppLanguageController.french:
+        'Les éléments sélectionnés, y compris le solde reporté, seront définitivement supprimés.',
+    AppLanguageController.spanish:
+        'Los elementos seleccionados, incluido el saldo arrastrado, se eliminarán definitivamente.',
+    AppLanguageController.german:
+        'Die ausgewählten Elemente, einschließlich des übertragenen Saldos, werden endgültig gelöscht.',
+    AppLanguageController.chineseSimplified: '所选项目(包括结转余额)将被永久删除。',
+    AppLanguageController.portuguesePT:
+        'Os elementos selecionados, incluindo o saldo transportado, serão eliminados definitivamente.',
+    AppLanguageController.portugueseBR:
+        'Os itens selecionados, incluindo o saldo transportado, serão excluídos permanentemente.',
+    AppLanguageController.japanese: '繰越残高を含む選択した項目は完全に削除されます。',
+    AppLanguageController.arabic:
+        'سيتم حذف العناصر المحددة نهائيًا، بما في ذلك الرصيد المُرحَّل.',
+    AppLanguageController.russian:
+        'Выбранные элементы, включая перенесённый остаток, будут удалены безвозвратно.',
+  },
+  '{n} elementi eliminati': {
+    AppLanguageController.englishUS: '{n} items deleted',
+    AppLanguageController.french: '{n} éléments supprimés',
+    AppLanguageController.spanish: '{n} elementos eliminados',
+    AppLanguageController.german: '{n} Elemente gelöscht',
+    AppLanguageController.chineseSimplified: '已删除 {n} 个项目',
+    AppLanguageController.portuguesePT: '{n} elementos eliminados',
+    AppLanguageController.portugueseBR: '{n} itens excluídos',
+    AppLanguageController.japanese: '{n}件の項目を削除しました',
+    AppLanguageController.arabic: 'تم حذف العناصر ({n})',
+    AppLanguageController.russian: 'Удалено элементов: {n}',
+  },
 };
 
 // Traduzioni dei nomi delle categorie predefinite (per la lista vedi

@@ -115,11 +115,26 @@ class _HomePageState extends State<HomePage>
   bool isSelectionMode = false;
   final Set<int> selectedTransactionIds = {};
 
+  // Il saldo riportato dal mese precedente non è un movimento salvato nel
+  // database, quindi la sua selezione va tenuta a parte da quella dei
+  // movimenti.
+  bool isCarryoverSelected = false;
+
   // Movimenti eliminati con lo swipe ma non ancora cancellati davvero dal
   // database: restano qui per qualche secondo, il tempo di premere
   // "Annulla" nella barra in basso. Finché sono in questo insieme vengono
   // nascosti da liste e totali.
   final Set<int> _pendingDeletionIds = {};
+
+  // Stessa cosa per il saldo riportato: appena l'utente lo elimina il
+  // riporto vale zero in tutta la schermata, ma la modifica diventa
+  // definitiva solo quando la barra "Annulla" si chiude. Teniamo il mese
+  // a cui si riferisce, così se nel frattempo l'utente ne cambia uno
+  // l'altro mese non viene azzerato per sbaglio.
+  DateTime? _pendingCarryoverDeletionMonth;
+
+  bool _isSameMonth(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month;
 
   Map<String, ExpenseCategory> _categoriesByName = {};
 
@@ -210,6 +225,7 @@ class _HomePageState extends State<HomePage>
       showAllTransactions = false;
       isSelectionMode = false;
       selectedTransactionIds.clear();
+      isCarryoverSelected = false;
     });
 
     await loadSelectedMonthData();
@@ -229,6 +245,7 @@ class _HomePageState extends State<HomePage>
       isSearching = !isSearching;
       isSelectionMode = false;
       selectedTransactionIds.clear();
+      isCarryoverSelected = false;
       if (!isSearching) {
         _searchDebounce?.cancel();
         searchController.clear();
@@ -304,6 +321,7 @@ class _HomePageState extends State<HomePage>
       showAllTransactions = false;
       isSelectionMode = false;
       selectedTransactionIds.clear();
+      isCarryoverSelected = false;
     });
 
     await loadSelectedMonthData();
@@ -337,6 +355,7 @@ class _HomePageState extends State<HomePage>
       showAllTransactions = false;
       isSelectionMode = false;
       selectedTransactionIds.clear();
+      isCarryoverSelected = false;
     });
 
     await loadSelectedMonthData();
@@ -357,6 +376,7 @@ class _HomePageState extends State<HomePage>
       showAllTransactions = false;
       isSelectionMode = false;
       selectedTransactionIds.clear();
+      isCarryoverSelected = false;
     });
 
     await loadSelectedMonthData();
@@ -420,7 +440,13 @@ class _HomePageState extends State<HomePage>
         );
 
         savingsGoal = savedBudget['savingsGoal'] ?? 0;
-        monthlyCarryover = savedCarryover;
+        // Come per i movimenti: se il riporto è appena stato eliminato con
+        // lo swipe (e si può ancora annullare) non deve ricomparire.
+        final pendingMonth = _pendingCarryoverDeletionMonth;
+        monthlyCarryover =
+            pendingMonth != null && _isSameMonth(pendingMonth, monthToLoad)
+                ? 0
+                : savedCarryover;
         annualExpenses = savedAnnualExpenses;
         monthlyPlannedExpenses = savedPlannedExpenses;
         _categoriesByName = {
@@ -1038,7 +1064,76 @@ class _HomePageState extends State<HomePage>
     onLocalChange?.call();
   }
 
-  void enterSelectionMode([FinanceTransaction? firstSelected]) {
+  /// Eliminazione del saldo riportato con lo swipe, con lo stesso
+  /// comportamento dei movimenti: sparisce subito e per qualche secondo si
+  /// può annullare. Il riporto non è una riga del database ma un valore
+  /// calcolato, quindi "eliminarlo" vuol dire dire all'app di far
+  /// ripartire da zero il conteggio a partire da questo mese.
+  Future<void> swipeDeleteCarryover() async {
+    final month = DateTime(selectedMonth.year, selectedMonth.month, 1);
+
+    setState(() {
+      _pendingCarryoverDeletionMonth = month;
+      monthlyCarryover = 0;
+      isCarryoverSelected = false;
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+
+    var undone = false;
+    var closed = false;
+
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        content: Text(l('Saldo riportato eliminato')),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: l('Annulla'),
+          onPressed: () {
+            undone = true;
+          },
+        ),
+      ),
+    );
+
+    Timer(const Duration(seconds: 4), () {
+      if (!closed) controller.close();
+    });
+
+    await controller.closed;
+    closed = true;
+
+    if (undone) {
+      _pendingCarryoverDeletionMonth = null;
+      await loadSelectedMonthData();
+      return;
+    }
+
+    await DatabaseService.instance.resetCarryoverForMonth(month);
+    _pendingCarryoverDeletionMonth = null;
+
+    await loadSelectedMonthData();
+    if (!mounted) return;
+    _notifyOtherPages();
+  }
+
+  void toggleCarryoverSelection() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      isCarryoverSelected = !isCarryoverSelected;
+    });
+  }
+
+  /// Numero di elementi selezionati: i movimenti più, se c'è, il saldo
+  /// riportato.
+  int get _selectedItemsCount =>
+      selectedTransactionIds.length + (isCarryoverSelected ? 1 : 0);
+
+  void enterSelectionMode([
+    FinanceTransaction? firstSelected,
+    bool selectCarryover = false,
+  ]) {
     HapticFeedback.selectionClick();
     setState(() {
       isSelectionMode = true;
@@ -1047,6 +1142,7 @@ class _HomePageState extends State<HomePage>
       // che l'utente non vede.
       showAllTransactions = true;
       selectedTransactionIds.clear();
+      isCarryoverSelected = selectCarryover;
       final id = firstSelected?.id;
       if (id != null) selectedTransactionIds.add(id);
     });
@@ -1056,6 +1152,7 @@ class _HomePageState extends State<HomePage>
     setState(() {
       isSelectionMode = false;
       selectedTransactionIds.clear();
+      isCarryoverSelected = false;
     });
   }
 
@@ -1071,21 +1168,34 @@ class _HomePageState extends State<HomePage>
     });
   }
 
+  /// Il saldo riportato compare solo nella lista del mese (non tra i
+  /// risultati di ricerca) e solo se è diverso da zero: è l'unico caso in
+  /// cui può essere selezionato o eliminato.
+  bool get _isCarryoverVisible => !isSearching && monthlyCarryover != 0;
+
   bool get _allShownSelected {
     final shownIds =
         _shownTransactions.map((t) => t.id).whereType<int>().toSet();
-    return shownIds.isNotEmpty &&
+    if (shownIds.isEmpty && !_isCarryoverVisible) return false;
+
+    final everyTransactionSelected =
         shownIds.every(selectedTransactionIds.contains);
+    final carryoverSelectedIfShown =
+        !_isCarryoverVisible || isCarryoverSelected;
+
+    return everyTransactionSelected && carryoverSelectedIfShown;
   }
 
   void toggleSelectAllShown() {
     setState(() {
       if (_allShownSelected) {
         selectedTransactionIds.clear();
+        isCarryoverSelected = false;
       } else {
         selectedTransactionIds.addAll(
           _shownTransactions.map((t) => t.id).whereType<int>(),
         );
+        if (_isCarryoverVisible) isCarryoverSelected = true;
       }
     });
   }
@@ -1095,21 +1205,35 @@ class _HomePageState extends State<HomePage>
   /// più pesante, come in Foto o in Mail su iOS.
   Future<void> deleteSelectedTransactions() async {
     final ids = selectedTransactionIds.toList();
-    if (ids.isEmpty) return;
+    final deleteCarryover = isCarryoverSelected;
+    if (ids.isEmpty && !deleteCarryover) return;
 
-    final count = ids.length;
+    final count = ids.length + (deleteCarryover ? 1 : 0);
+    // Se nella selezione c'è anche il saldo riportato i testi non possono
+    // parlare solo di "movimenti": il riporto non è un movimento.
+    final onlyCarryover = deleteCarryover && ids.isEmpty;
+    final mixedSelection = deleteCarryover && ids.isNotEmpty;
+    final month = DateTime(selectedMonth.year, selectedMonth.month, 1);
 
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: Text(
-            count == 1
+            onlyCarryover
+                ? l('Eliminare il saldo riportato?')
+                : mixedSelection
+                ? l('Eliminare {n} elementi?').replaceAll('{n}', '$count')
+                : count == 1
                 ? l('Eliminare movimento?')
                 : l('Eliminare {n} movimenti?').replaceAll('{n}', '$count'),
           ),
           content: Text(
-            count == 1
+            onlyCarryover
+                ? l('Il saldo riportato dal mese precedente non verrà più conteggiato da questo mese in poi.')
+                : mixedSelection
+                ? l('Gli elementi selezionati, compreso il saldo riportato, verranno eliminati definitivamente.')
+                : count == 1
                 ? l('Il movimento selezionato verrà eliminato definitivamente.')
                 : l('I {n} movimenti selezionati verranno eliminati definitivamente.')
                     .replaceAll('{n}', '$count'),
@@ -1133,12 +1257,18 @@ class _HomePageState extends State<HomePage>
 
     if (confirmed != true) return;
 
-    await DatabaseService.instance.deleteTransactions(ids);
+    if (ids.isNotEmpty) {
+      await DatabaseService.instance.deleteTransactions(ids);
+    }
+    if (deleteCarryover) {
+      await DatabaseService.instance.resetCarryoverForMonth(month);
+    }
 
     if (!mounted) return;
     setState(() {
       isSelectionMode = false;
       selectedTransactionIds.clear();
+      isCarryoverSelected = false;
     });
 
     await loadSelectedMonthData();
@@ -1150,7 +1280,11 @@ class _HomePageState extends State<HomePage>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          count == 1
+          onlyCarryover
+              ? l('Saldo riportato eliminato')
+              : mixedSelection
+              ? l('{n} elementi eliminati').replaceAll('{n}', '$count')
+              : count == 1
               ? l('Movimento eliminato')
               : l('{n} movimenti eliminati').replaceAll('{n}', '$count'),
         ),
@@ -1265,8 +1399,8 @@ class _HomePageState extends State<HomePage>
     await showInfo(
       title: l('Saldo mese precedente'),
       message: le(
-        'È il Disponibile del mese scorso, positivo o negativo, riportato automaticamente all\'inizio di questo mese. Si aggiorna da solo: per modificarlo devi correggere i movimenti del mese di provenienza, non puoi cambiarlo da qui.',
-        'This is last month\'s Available balance, positive or negative, carried over automatically at the start of this month. It updates on its own: to change it you need to fix the transactions in the month it came from, you can\'t edit it here.',
+        'È il Disponibile del mese scorso, positivo o negativo, riportato automaticamente all\'inizio di questo mese. Si aggiorna da solo: per modificarlo devi correggere i movimenti del mese di provenienza. Se non vuoi tenerne conto puoi eliminarlo con uno swipe verso sinistra, oppure selezionandolo insieme ai movimenti: da questo mese in poi il conteggio riparte da zero.',
+        'This is last month\'s Available balance, positive or negative, carried over automatically at the start of this month. It updates on its own: to change it you need to fix the transactions in the month it came from. If you\'d rather not count it, swipe left to delete it, or select it together with your transactions: from this month on the running balance starts from zero.',
       ),
     );
   }
@@ -1549,18 +1683,18 @@ class _HomePageState extends State<HomePage>
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: isSelectionMode
           ? FloatingActionButton.extended(
-              onPressed: selectedTransactionIds.isEmpty
+              onPressed: _selectedItemsCount == 0
                   ? null
                   : deleteSelectedTransactions,
-              backgroundColor: selectedTransactionIds.isEmpty
+              backgroundColor: _selectedItemsCount == 0
                   ? hc.iconMuted
                   : Theme.of(context).colorScheme.error,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.delete_outline_rounded),
               label: Text(
-                selectedTransactionIds.isEmpty
+                _selectedItemsCount == 0
                     ? l('Elimina')
-                    : '${l('Elimina')} (${selectedTransactionIds.length})',
+                    : '${l('Elimina')} ($_selectedItemsCount)',
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             )
@@ -1762,7 +1896,14 @@ class _HomePageState extends State<HomePage>
                     monthlyCarryover != 0 ? monthlyCarryover : null,
                 carryoverFormattedAmount:
                     formatMoney(monthlyCarryover.abs()),
-                onCarryoverTap: showCarryoverInfo,
+                onCarryoverTap: isSelectionMode
+                    ? toggleCarryoverSelection
+                    : showCarryoverInfo,
+                carryoverSelected: isCarryoverSelected,
+                onCarryoverLongPress: () => isSelectionMode
+                    ? toggleCarryoverSelection()
+                    : enterSelectionMode(null, true),
+                onCarryoverSwipeDelete: swipeDeleteCarryover,
                 showFirstTransactionPrompt:
                     !hasAnyTransactionsEver && transactions.isEmpty,
                 onAddFirstTransaction:
@@ -2262,6 +2403,9 @@ class RecentTransactionsCard extends StatelessWidget {
   final double? carryoverAmount;
   final String? carryoverFormattedAmount;
   final VoidCallback? onCarryoverTap;
+  final bool carryoverSelected;
+  final VoidCallback? onCarryoverLongPress;
+  final VoidCallback? onCarryoverSwipeDelete;
   final bool showFirstTransactionPrompt;
   final VoidCallback? onAddFirstTransaction;
   final bool isSearching;
@@ -2293,6 +2437,9 @@ class RecentTransactionsCard extends StatelessWidget {
     this.carryoverAmount,
     this.carryoverFormattedAmount,
     this.onCarryoverTap,
+    this.carryoverSelected = false,
+    this.onCarryoverLongPress,
+    this.onCarryoverSwipeDelete,
     this.showFirstTransactionPrompt = false,
     this.onAddFirstTransaction,
     required this.isSearching,
@@ -2432,7 +2579,7 @@ class RecentTransactionsCard extends StatelessWidget {
                         tooltip: le('Cerca nello storico', 'Search history'),
                         visualDensity: VisualDensity.compact,
                       ),
-                      if (transactions.isNotEmpty)
+                      if (transactions.isNotEmpty || carryoverAmount != null)
                         IconButton(
                           onPressed: onEnterSelection,
                           icon: const Icon(Icons.checklist_rounded),
@@ -2493,6 +2640,10 @@ class RecentTransactionsCard extends StatelessWidget {
                 formattedAmount: carryoverFormattedAmount ??
                     formatMoney(carryoverAmount!.abs()),
                 onTap: onCarryoverTap,
+                onLongPress: onCarryoverLongPress,
+                onSwipeDelete: onCarryoverSwipeDelete,
+                selectionMode: isSelectionMode,
+                selected: carryoverSelected,
               ),
               Divider(
                 height: 1,
@@ -2812,12 +2963,20 @@ class CarryoverItem extends StatelessWidget {
   final double amount;
   final String formattedAmount;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onSwipeDelete;
+  final bool selectionMode;
+  final bool selected;
 
   const CarryoverItem({
     super.key,
     required this.amount,
     required this.formattedAmount,
     this.onTap,
+    this.onLongPress,
+    this.onSwipeDelete,
+    this.selectionMode = false,
+    this.selected = false,
   });
 
   @override
@@ -2826,12 +2985,32 @@ class CarryoverItem extends StatelessWidget {
     final isPositive = amount >= 0;
     final amountColor = isPositive ? hc.green : hc.textPrimaryStrong;
 
-    return InkWell(
+    final row = InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         child: Row(
           children: [
+            // Il pallino di selezione compare con la stessa animazione dei
+            // movimenti, così la riga del riporto non "salta" rispetto
+            // alle altre quando si entra in selezione.
+            AnimatedSize(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              child: selectionMode
+                  ? Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Icon(
+                        selected
+                            ? Icons.check_circle_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        size: 24,
+                        color: selected ? hc.teal : hc.iconMuted,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             Container(
               width: 43,
               height: 43,
@@ -2888,6 +3067,43 @@ class CarryoverItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (onSwipeDelete == null || selectionMode) {
+      return row;
+    }
+
+    final errorColor = Theme.of(context).colorScheme.error;
+
+    return Dismissible(
+      key: const ValueKey('monthly-carryover'),
+      direction: DismissDirection.endToStart,
+      dismissThresholds: const {DismissDirection.endToStart: 0.35},
+      background: Container(
+        color: errorColor,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l('Elimina'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.white,
+            ),
+          ],
+        ),
+      ),
+      onDismissed: (_) => onSwipeDelete!(),
+      child: row,
     );
   }
 }
