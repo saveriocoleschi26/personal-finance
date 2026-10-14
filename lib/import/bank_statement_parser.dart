@@ -148,6 +148,21 @@ class BankStatementParser {
       if (candidate != null) results.add(candidate);
     }
 
+    // Schema "a record": ogni movimento inizia con la/le date a inizio riga e
+    // arriva fino al movimento successivo, anche su più righe. Serve quando
+    // la descrizione va a capo e l'importo finisce su una riga diversa da
+    // quella della data (es. carta di credito ING: "Operazione presso ...
+    // Importo in divisa" / "estera=... USD" / "-10,65"), caso in cui lo schema
+    // riga-per-riga qui sopra perde quei movimenti. Si usa solo se trova più
+    // movimenti dello schema principale.
+    final recordResults =
+        _parseMultilineRecords(afterHeader, availableCategoryNames);
+    if (recordResults.length > results.length) {
+      results
+        ..clear()
+        ..addAll(recordResults);
+    }
+
     // Schema alternativo (importo prima della descrizione): si prova solo
     // se il primo non ha trovato nulla, per evitare di leggere due volte
     // lo stesso movimento su un documento che in teoria potrebbe
@@ -174,6 +189,84 @@ class BankStatementParser {
       results.addAll(
         _parseTextDateWithRunningBalance(fullText, availableCategoryNames),
       );
+    }
+
+    return results;
+  }
+
+  // Inizio di un movimento: una data (più una seconda data facoltativa) a
+  // inizio riga. \f, \r e \v sono ammessi prima della data perché alcune
+  // estrazioni PDF separano le pagine con un carattere di nuova pagina.
+  static final RegExp _recordStartPattern = RegExp(
+    r'^[ \t\f\r\v]*(\d{2}[\/\-.]\d{2}[\/\-.]\d{4})[ \t]+'
+    r'(?:\d{2}[\/\-.]\d{2}[\/\-.]\d{4}[ \t]*)?',
+    multiLine: true,
+  );
+
+  // Importo a fine riga (con segno facoltativo, eventuale "EUR" o "€" dopo).
+  // Il carattere prima non può essere '=', cifra, '.', ',' o '-': evita di
+  // scambiare per importo "estera=11,88" o parti di numeri più lunghi.
+  static final RegExp _trailingAmountPattern = RegExp(
+    r'(?:^|[^=\d.,\-])(-?\d{1,3}(?:\.\d{3})*,\d{2})[ \t]*(?:€|EUR)?[ \t]*$',
+    multiLine: true,
+  );
+
+  // Righe di totale/saldo finale, da ignorare nello schema a record così che
+  // il loro importo non venga attribuito all'ultimo movimento.
+  static final RegExp _summaryLinePattern = RegExp(
+    r'^[ \t]*(TOTALE|SALDO\s+FINALE|RIEPILOGO\s+ACQUISTI).*$',
+    caseSensitive: false,
+    multiLine: true,
+  );
+
+  static final RegExp _pageNumberPattern = RegExp(r'Pag\.\s*\d+\s*/\s*\d+');
+
+  static final RegExp _foreignCurrencyDetailPattern = RegExp(
+    r'\s*Importo in divisa.*$',
+    caseSensitive: false,
+  );
+
+  static List<ImportedTransactionCandidate> _parseMultilineRecords(
+    String text,
+    List<String> availableCategoryNames,
+  ) {
+    final cleaned = text.replaceAll(_summaryLinePattern, '');
+    final starts = _recordStartPattern.allMatches(cleaned).toList();
+    final results = <ImportedTransactionCandidate>[];
+
+    for (var i = 0; i < starts.length; i++) {
+      final start = starts[i];
+      final end =
+          i + 1 < starts.length ? starts[i + 1].start : cleaned.length;
+      final body = cleaned.substring(start.end, end);
+
+      Match? amountMatch;
+      for (final m in _trailingAmountPattern.allMatches(body)) {
+        amountMatch = m;
+      }
+      if (amountMatch == null) continue;
+
+      final amountText = amountMatch.group(1)!;
+      final amountStart =
+          amountMatch.start + amountMatch.group(0)!.indexOf(amountText);
+      final amountEnd = amountStart + amountText.length;
+
+      var description = '${body.substring(0, amountStart)} '
+          '${body.substring(amountEnd)}';
+      description = description
+          .replaceAll(_pageNumberPattern, '')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim()
+          .replaceAll(_foreignCurrencyDetailPattern, '')
+          .trim();
+
+      final candidate = _buildCandidate(
+        dateText: start.group(1)!,
+        descriptionText: description,
+        amountText: amountText,
+        availableCategoryNames: availableCategoryNames,
+      );
+      if (candidate != null) results.add(candidate);
     }
 
     return results;
