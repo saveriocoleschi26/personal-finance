@@ -33,6 +33,7 @@ class _AssistantPageState extends State<AssistantPage> {
 
   bool _busy = false;
   Timer? _typeTimer;
+  String? _lastQuestion;
 
   static const List<String> _suggestions = [
     'Dove ho speso di più questo mese?',
@@ -68,17 +69,22 @@ class _AssistantPageState extends State<AssistantPage> {
   Future<FinanceQueryEngine> _loadEngine() async {
     final now = DateTime.now();
     final db = DatabaseService.instance;
+    final byMonth = <int, Map<String, double>>{};
 
-    final current = await db.getTransactionsForMonth(
-      DateTime(now.year, now.month, 1),
-    );
-    final previous = await db.getTransactionsForMonth(
-      DateTime(now.year, now.month - 1, 1),
-    );
+    // Ultimi 14 mesi: bastano per rispondere a "settembre" o "il mese
+    // scorso" e confrontarli con il mese precedente.
+    for (var i = 0; i < 14; i++) {
+      final month = DateTime(now.year, now.month - i, 1);
+      final items = await db.getTransactionsForMonth(month);
+      final sums = _sumByCategory(items);
+      if (sums.isNotEmpty) {
+        byMonth[FinanceQueryEngine.keyOf(month)] = sums;
+      }
+    }
 
     return FinanceQueryEngine(
-      currentMonth: _sumByCategory(current),
-      previousMonth: _sumByCategory(previous),
+      byMonth: byMonth,
+      now: now,
       money: AppCurrencyController.instance.format,
     );
   }
@@ -117,7 +123,15 @@ class _AssistantPageState extends State<AssistantPage> {
     String reply;
     try {
       final engine = await _loadEngine();
-      reply = engine.answer(question);
+      final effective = FinanceQueryEngine.resolveQuestion(
+        question,
+        _lastQuestion,
+      );
+      reply = engine.answer(effective);
+      _lastQuestion = effective;
+      if (reply.trim().isEmpty) {
+        reply = l('Non ho trovato dati utili per rispondere a questa domanda.');
+      }
     } catch (_) {
       reply = l(
         'Non sono riuscito a leggere le tue spese in questo momento. '

@@ -4,7 +4,7 @@
 /// presenti sul dispositivo e frasi preparate: nessun modello AI, nessuna
 /// rete, nessuna cifra inventata. Ogni numero mostrato è calcolato qui,
 /// dai totali per categoria del mese corrente e del mese precedente.
-class FinanceQueryEngine {
+class _MonthEngine {
   /// Spese (solo uscite) per categoria nel mese corrente.
   final Map<String, double> currentMonth;
 
@@ -14,11 +14,24 @@ class FinanceQueryEngine {
   /// Formattazione degli importi (valuta e separatori scelti dall'utente).
   final String Function(double) money;
 
-  const FinanceQueryEngine({
+  /// Etichette del mese analizzato: "questo mese" oppure "a settembre".
+  final String cur;
+
+  /// Etichetta del mese di confronto: "il mese scorso" oppure "ad agosto".
+  final String prevLabel;
+
+  const _MonthEngine({
     required this.currentMonth,
     required this.previousMonth,
     required this.money,
+    this.cur = 'questo mese',
+    this.prevLabel = 'il mese scorso',
   });
+
+  String get _curCap => cur[0].toUpperCase() + cur.substring(1);
+
+  /// "rispetto al mese scorso" / "rispetto ad agosto"
+  String get _vsPrev => 'rispetto ${prevLabel.startsWith('il ') ? 'al ${prevLabel.substring(3)}' : prevLabel}';
 
   double get totalCurrent => currentMonth.values.fold(0.0, (a, b) => a + b);
   double get totalPrevious => previousMonth.values.fold(0.0, (a, b) => a + b);
@@ -42,9 +55,13 @@ class FinanceQueryEngine {
       'Non ho accesso a conti, saldi o dati bancari: lavoro solo sulle '
       'spese registrate in Liblo.';
 
-  static const String _noDataReply =
+  static const String _noDataReplyNow =
       'Non ho ancora spese registrate per questo mese. Appena ne aggiungi '
       'qualcuna potrò risponderti.';
+
+  String get _noDataReply => cur == 'questo mese'
+      ? _noDataReplyNow
+      : 'Non ho spese registrate $cur.';
 
   static const List<String> _adviceCues = [
     'risparm', 'ridurre', 'ridurr', 'tagliar', 'consigl', 'spendere meno',
@@ -87,7 +104,7 @@ class FinanceQueryEngine {
     ]) && !hasAdviceCue && named == null) {
       final top = _topCategory(currentMonth);
       if (top == null) return _noDataReply;
-      return 'Questo mese hai speso di più in "${top.key}": '
+      return '$_curCap hai speso di più in "${top.key}": '
           '${money(top.value)} (${_share(top.value)} della spesa totale).';
     }
 
@@ -96,22 +113,11 @@ class FinanceQueryEngine {
       'quanto ho speso in totale', 'quanto spendo in totale',
       'quanto ho speso in tutto', 'quanto spendo in tutto', 'spesa totale',
       'totale spese', 'totale delle spese', 'quanto ho speso questo mese',
-      'quanto spendo questo mese',
+      'quanto spendo questo mese', 'quanto ho speso', 'quanto spendo',
+      'quanto ho speso nel mese', 'quante spese',
     ]) && named == null) {
       if (currentMonth.isEmpty) return _noDataReply;
-      return 'Questo mese hai speso in totale ${money(totalCurrent)}.';
-    }
-
-    // "Quanto ho speso il mese scorso?"
-    if (_matchesAny(q, [
-      'quanto ho speso il mese scorso', 'quanto ho speso lo scorso mese',
-      'spese del mese scorso', 'spesa del mese scorso',
-      'quanto ho speso il mese precedente',
-    ]) && named == null) {
-      if (previousMonth.isEmpty) {
-        return 'Non ho spese registrate per il mese scorso.';
-      }
-      return 'Il mese scorso hai speso in totale ${money(totalPrevious)}.';
+      return '$_curCap hai speso in totale ${money(totalCurrent)}.';
     }
 
     // "Quale categoria è aumentata di più?"
@@ -123,14 +129,13 @@ class FinanceQueryEngine {
     ]) && named == null) {
       final inc = _topIncrease();
       if (inc == null || previousMonth.isEmpty) {
-        return 'Non ho dati sufficienti sul mese scorso per fare un confronto.';
+        return 'Non ho dati sufficienti sul mese precedente per fare un confronto.';
       }
       if (inc.deltaAbs <= 0.005) {
-        return 'Nessuna categoria è aumentata rispetto al mese scorso.';
+        return 'Nessuna categoria è aumentata $_vsPrev.';
       }
       return 'La categoria cresciuta di più è "${inc.category}": '
-          '+${money(inc.deltaAbs)} (${_pct(inc.deltaPct)}) rispetto al mese '
-          'scorso.';
+          '+${money(inc.deltaAbs)} (${_pct(inc.deltaPct)}) $_vsPrev.';
     }
 
     // Consigli (con o senza categoria)
@@ -147,16 +152,16 @@ class FinanceQueryEngine {
       ])) {
         final delta = curr - prev;
         if (delta.abs() < 0.005) {
-          return '"$named" è rimasta invariata rispetto al mese scorso '
+          return '"$named" è rimasta invariata $_vsPrev '
               '(${money(curr)}).';
         }
         final pct = prev > 0 ? delta / prev * 100 : 100.0;
         final verb = delta > 0 ? 'aumentata' : 'diminuita';
         return '"$named" è $verb di ${money(delta.abs())} '
-            '(${_pct(pct)}) rispetto al mese scorso '
+            '(${_pct(pct)}) $_vsPrev '
             '(da ${money(prev)} a ${money(curr)}).';
       }
-      return 'In "$named" hai speso ${money(curr)} questo mese.';
+      return 'In "$named" hai speso ${money(curr)} $cur.';
     }
 
     // Confronto generale col mese scorso
@@ -166,12 +171,12 @@ class FinanceQueryEngine {
       }
       final delta = totalCurrent - totalPrevious;
       if (delta.abs() < 0.005) {
-        return 'Questo mese hai speso come il mese scorso '
+        return '$_curCap hai speso come $prevLabel '
             '(${money(totalCurrent)}).';
       }
       final pct = totalPrevious > 0 ? delta / totalPrevious * 100 : 100.0;
       final word = delta > 0 ? 'in più' : 'in meno';
-      return 'Questo mese hai speso ${money(totalCurrent)}, il mese scorso '
+      return '$_curCap hai speso ${money(totalCurrent)}, $prevLabel '
           '${money(totalPrevious)}: ${money(delta.abs())} $word '
           '(${_pct(pct)}).';
     }
@@ -185,7 +190,7 @@ class FinanceQueryEngine {
   // ---------------------------------------------------------------------
 
   String _adviceReply(String q, String? category) {
-    if (currentMonth.isEmpty && previousMonth.isEmpty) return _noDataReply;
+    if (currentMonth.isEmpty) return _noDataReply;
 
     final buf = StringBuffer(_insight(category));
     final tips = <String>[];
@@ -215,24 +220,24 @@ class FinanceQueryEngine {
       final delta = curr - prev;
       final shareTxt = '${_share(curr)} della spesa totale';
       if (previousMonth.isEmpty || delta.abs() < 0.005) {
-        return 'In "$focus" questo mese hai speso ${money(curr)} ($shareTxt).';
+        return 'In "$focus" $cur hai speso ${money(curr)} ($shareTxt).';
       }
       final pct = prev > 0 ? delta / prev * 100 : 100.0;
       final sign = delta > 0 ? '+' : '-';
-      return 'In "$focus" questo mese hai speso ${money(curr)} ($shareTxt): '
-          '$sign${money(delta.abs())} (${_pct(pct)}) rispetto al mese scorso.';
+      return 'In "$focus" $cur hai speso ${money(curr)} ($shareTxt): '
+          '$sign${money(delta.abs())} (${_pct(pct)}) $_vsPrev.';
     }
 
     final top = _topCategory(currentMonth);
     if (top == null) return '';
     final buf = StringBuffer(
-      'Questo mese spendi di più in "${top.key}": ${money(top.value)} '
+      '$_curCap hai speso di più in "${top.key}": ${money(top.value)} '
       '(${_share(top.value)} della spesa totale).',
     );
     final inc = _topIncrease();
     if (inc != null && inc.deltaAbs > 0.005 && previousMonth.isNotEmpty) {
       buf.write(
-        ' La categoria cresciuta di più rispetto al mese scorso è '
+        ' La categoria cresciuta di più $_vsPrev è '
         '"${inc.category}": +${money(inc.deltaAbs)} (${_pct(inc.deltaPct)}).',
       );
     }
@@ -362,7 +367,8 @@ class FinanceQueryEngine {
   bool _isFinanceRelated(String q) {
     const stems = [
       'risparm', 'spes', 'spend', 'budget', 'soldi', 'denaro', '€',
-      'categori', 'questo mese', 'mese scorso', 'prossimo mese',
+      'categori', 'questo mese', 'mese scorso', 'prossimo mese', 'mese precedente',
+      'mese passato', 'scorso mese',
       'abbonament', 'entrat', 'uscit', 'liblo', 'tagliar', 'ridurre',
       'economi', 'pagament', 'bollett', 'guadagn', 'costi',
     ];
@@ -472,4 +478,143 @@ class FinanceQueryEngine {
 
   bool _matchesAny(String q, List<String> patterns) =>
       patterns.any((p) => q.contains(_normalize(p)));
+}
+
+
+/// Punto d'ingresso dell'assistente: capisce a quale mese si riferisce la
+/// domanda ("settembre", "il mese scorso", "questo mese") e risponde con il
+/// motore a regole su quel mese, confrontandolo con quello precedente.
+class FinanceQueryEngine {
+  /// Spese (solo uscite) per categoria, per mese. La chiave è
+  /// `anno * 12 + (mese - 1)`, vedi [keyOf].
+  final Map<int, Map<String, double>> byMonth;
+
+  /// Data di oggi (serve a capire quale sia "questo mese").
+  final DateTime now;
+
+  final String Function(double) money;
+
+  const FinanceQueryEngine({
+    required this.byMonth,
+    required this.now,
+    required this.money,
+  });
+
+  static int keyOf(DateTime d) => d.year * 12 + d.month - 1;
+
+  static const List<String> _monthNames = [
+    'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio',
+    'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre',
+  ];
+
+  static String _norm(String s) => s
+      .toLowerCase()
+      .replaceAll('à', 'a')
+      .replaceAll('è', 'e')
+      .replaceAll('é', 'e')
+      .replaceAll('ì', 'i')
+      .replaceAll('ò', 'o')
+      .replaceAll('ù', 'u');
+
+  /// Se [question] è un seguito breve che indica solo un mese
+  /// ("sì ma il mese precedente?"), la unisce alla domanda precedente.
+  static String resolveQuestion(String question, String? last) {
+    if (last == null) return question;
+    final q = _norm(question);
+    final hasMonthCue = _monthCuePosition(q) != null;
+    const substantive = [
+      'spes', 'spend', 'risparm', 'categori', 'totale', 'aument', 'consigl',
+      'quanto', 'dove', 'quale', 'come',
+    ];
+    final words = q.split(RegExp(r'[^a-z0-9]+')).where((w) => w.isNotEmpty);
+    if (hasMonthCue &&
+        !substantive.any(q.contains) &&
+        words.length <= 8) {
+      return '$last $question';
+    }
+    return question;
+  }
+
+  // Posizione (e mese) dell'ultimo riferimento temporale nella domanda.
+  static ({int pos, int monthsBack, int? monthNumber})? _monthCuePosition(
+    String q,
+  ) {
+    ({int pos, int monthsBack, int? monthNumber})? best;
+    void consider(int pos, int back, int? number) {
+      if (pos < 0) return;
+      if (best == null || pos > best!.pos) {
+        best = (pos: pos, monthsBack: back, monthNumber: number);
+      }
+    }
+
+    for (final cue in [
+      'mese scorso', 'scorso mese', 'mese precedente', 'mese passato',
+    ]) {
+      consider(q.lastIndexOf(cue), 1, null);
+    }
+    consider(q.lastIndexOf('questo mese'), 0, null);
+    for (var i = 0; i < _monthNames.length; i++) {
+      consider(q.lastIndexOf(_monthNames[i]), 0, i + 1);
+    }
+    return best;
+  }
+
+  String _label(int key) {
+    final name = _monthNames[key % 12];
+    final needsAd = name.startsWith('a');
+    return '${needsAd ? 'ad' : 'a'} $name';
+  }
+
+  String answer(String question) {
+    final q = _norm(question);
+    final nowKey = keyOf(now);
+
+    var targetKey = nowKey;
+    var explicit = false;
+    final cue = _monthCuePosition(q);
+    if (cue != null) {
+      if (cue.monthNumber != null) {
+        final m = cue.monthNumber!;
+        final year = m <= now.month ? now.year : now.year - 1;
+        targetKey = year * 12 + m - 1;
+        explicit = targetKey != nowKey;
+      } else if (cue.monthsBack > 0) {
+        targetKey = nowKey - cue.monthsBack;
+        explicit = true;
+      }
+    }
+
+    var note = '';
+    if (!explicit && (byMonth[targetKey] ?? const {}).isEmpty) {
+      for (var i = 1; i <= 12; i++) {
+        if ((byMonth[targetKey - i] ?? const {}).isNotEmpty) {
+          targetKey -= i;
+          final name = _monthNames[targetKey % 12];
+          note = 'Per questo mese non ci sono ancora spese registrate, quindi '
+              'ti rispondo con ${targetKey == nowKey - 1 ? 'il mese scorso' : name}.\n\n';
+          break;
+        }
+      }
+    }
+
+    final isNow = targetKey == nowKey;
+    final engine = _MonthEngine(
+      currentMonth: byMonth[targetKey] ?? const {},
+      previousMonth: byMonth[targetKey - 1] ?? const {},
+      money: money,
+      cur: isNow ? 'questo mese' : _label(targetKey),
+      prevLabel: isNow ? 'il mese scorso' : _label(targetKey - 1),
+    );
+
+    final reply = engine.answer(question);
+    if (note.isEmpty || _isStatic(reply)) return reply;
+    return '$note$reply';
+  }
+
+  static bool _isStatic(String reply) =>
+      reply == _MonthEngine.offTopicReply ||
+      reply == _MonthEngine.helpReply ||
+      reply.startsWith('Ciao!') ||
+      reply.startsWith('Non ho accesso a conti') ||
+      reply.startsWith('Qui ti mostro solo i totali');
 }
