@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'assistant/assistant_page.dart';
 import 'currency/app_currency.dart';
 import 'database/database_service.dart';
 import 'home_page.dart';
@@ -52,6 +53,13 @@ class _AppShellState extends State<AppShell> {
     refreshNotifier.value++;
   }
 
+  void _openAssistant() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AssistantPage()),
+    );
+  }
+
   Future<void> _showOnboardingIfNeeded() async {
     final completed = await DatabaseService.instance.getBoolSetting(
       'onboarding_completed',
@@ -79,6 +87,11 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final hc = HomeColors.of(context);
     final isDark = hc.isDark;
+
+    // L'assistente per ora risponde solo in italiano.
+    final showAssistant =
+        AppLanguageController.instance.effectiveLanguageCode ==
+            AppLanguageController.italian;
 
     return Scaffold(
       body: IndexedStack(
@@ -123,11 +136,20 @@ class _AppShellState extends State<AppShell> {
           }),
         ),
         child: NavigationBar(
-          selectedIndex: selectedIndex,
+          // Con l'assistente visibile la barra ha 3 voci (Home, Assistente,
+          // Pianifica): la voce centrale non è una scheda, apre la chat.
+          selectedIndex: showAssistant && selectedIndex == 1
+              ? 2
+              : selectedIndex,
           onDestinationSelected: (index) {
+            if (showAssistant && index == 1) {
+              _openAssistant();
+              return;
+            }
+            final tab = showAssistant && index == 2 ? 1 : index;
             setState(() {
-              selectedIndex = index;
-              if (index == 1) {
+              selectedIndex = tab;
+              if (tab == 1) {
                 _planningInitialized = true;
               }
             });
@@ -138,6 +160,23 @@ class _AppShellState extends State<AppShell> {
               selectedIcon: Icon(Icons.home_rounded),
               label: 'Home',
             ),
+            if (showAssistant)
+              NavigationDestination(
+                icon: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: hc.teal,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                label: l('Assistente'),
+              ),
             NavigationDestination(
               icon: const Icon(Icons.calendar_month_outlined),
               selectedIcon: const Icon(Icons.calendar_month_rounded),
