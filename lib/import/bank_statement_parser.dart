@@ -197,9 +197,31 @@ class BankStatementParser {
   // Inizio di un movimento: una data (più una seconda data facoltativa) a
   // inizio riga. \f, \r e \v sono ammessi prima della data perché alcune
   // estrazioni PDF separano le pagine con un carattere di nuova pagina.
+  //
+  // Due varianti, perché l'estrazione del testo dal PDF cambia da file a
+  // file: (1) la/le date sulla stessa riga della descrizione, (2) le due
+  // date ciascuna su una riga propria, con descrizione e importo nelle
+  // righe successive (ordine "a colonne", tipico dei PDF con tabelle).
+  // La seconda variante richiede DUE date di fila: una data da sola su
+  // una riga (es. nell'intestazione) non basta a far partire un movimento.
   static final RegExp _recordStartPattern = RegExp(
-    r'^[ \t\f\r\v]*(\d{2}[\/\-.]\d{2}[\/\-.]\d{4})[ \t]+'
-    r'(?:\d{2}[\/\-.]\d{2}[\/\-.]\d{4}[ \t]*)?',
+    r'^[ \t\f\r\v]*(\d{2}[\/\-.]\d{2}[\/\-.]\d{4})'
+    r'(?:[ \t]+(?:\d{2}[\/\-.]\d{2}[\/\-.]\d{4}[ \t]*)?'
+    r'|[ \t]*\n\s*\d{2}[\/\-.]\d{2}[\/\-.]\d{4}\s+)',
+    multiLine: true,
+  );
+
+  // Piè di pagina (codice documento, "Pag. 1/2", dati legali della banca):
+  // finisce nel testo tra l'ultimo movimento di una pagina e il primo della
+  // successiva e, senza questa pulizia, si attacca alla descrizione
+  // dell'ultimo movimento o gli fa leggere un importo sbagliato (es. il
+  // capitale sociale della banca). Si toglie dalla riga col numero di
+  // pagina fino alla prossima riga che inizia con una data.
+  static final RegExp _pageFooterPattern = RegExp(
+    r'(?:^[ \t]*[A-Z0-9]+_[A-Z0-9_.]+[ \t]*\r?\n)?'
+    r'^[^\n]*Pag\.\s*\d+\s*/\s*\d+[^\n]*(?:\r?\n|$)'
+    r'(?:(?![ \t\f\r\v]*\d{2}[\/\-.]\d{2}[\/\-.]\d{4})'
+    r'(?:[^\n]+(?:\r?\n|$)|\r?\n))*',
     multiLine: true,
   );
 
@@ -226,11 +248,28 @@ class BankStatementParser {
     caseSensitive: false,
   );
 
+  // Taglia il testo alla riga di totale/saldo finale che sta DOPO l'ultimo
+  // movimento. Serve perché l'importo del totale può trovarsi su una riga
+  // diversa dalla parola "Totale" (ordine "a colonne") e verrebbe letto
+  // come importo dell'ultimo movimento. Un "Totale" in mezzo ai movimenti
+  // (dopo il quale ne seguono altri) non taglia nulla.
+  static String _cutAtTrailingSummary(String text) {
+    final starts = _recordStartPattern.allMatches(text).toList();
+    if (starts.isEmpty) return text;
+    final lastStart = starts.last.start;
+    for (final stop in _stopMarker.allMatches(text)) {
+      if (stop.start > lastStart) return text.substring(0, stop.start);
+    }
+    return text;
+  }
+
   static List<ImportedTransactionCandidate> _parseMultilineRecords(
     String text,
     List<String> availableCategoryNames,
   ) {
-    final cleaned = text.replaceAll(_summaryLinePattern, '');
+    final cleaned = _cutAtTrailingSummary(
+      text.replaceAll(_pageFooterPattern, ''),
+    ).replaceAll(_summaryLinePattern, '');
     final starts = _recordStartPattern.allMatches(cleaned).toList();
     final results = <ImportedTransactionCandidate>[];
 
