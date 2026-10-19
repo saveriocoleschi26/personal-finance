@@ -488,11 +488,22 @@ class BankStatementParser {
   // categorie predefinite dell'app. È un aiuto, non una scienza esatta:
   // l'utente rivede e corregge nella schermata di importazione prima di
   // confermare.
+  //
+  // Le parole chiave vengono cercate solo all'INIZIO di una parola (vedi
+  // guessCategory): così "esso" non scatta più dentro "Operazione presso".
+  // L'ordine conta: vince la prima categoria che trova una corrispondenza.
   static final List<MapEntry<String, List<String>>> _categoryKeywords = [
+    // Consegna cibo: va prima di "Auto e trasporti", che ha "uber".
+    MapEntry('Ristoranti e bar', [
+      'uber eat', 'ubereats', 'doordash', 'deliveroo', 'glovo', 'just eat',
+      'justeat',
+    ]),
     MapEntry('Spesa alimentare', [
       'esselunga', 'coop', 'conad', 'carrefour', 'lidl', 'eurospin',
       'pam ', 'iper', 'supermerc', 'md discount', 'penny market',
-      'famila', 'despar', 'crai',
+      'famila', 'despar', 'crai', 'aldi', 'tigros', 'bennet', 'naturasi',
+      'trader joe', 'whole foods', 'safeway', 'costco', 'walmart', 'kroger',
+      'ralphs', 'grocery', 'supermarket',
     ]),
     MapEntry('Casa e bollette', [
       'enel energia', 'eni gas', 'a2a', 'hera', 'acea', 'iren',
@@ -503,31 +514,42 @@ class BankStatementParser {
       'eni ', 'q8', 'ip carburanti', 'esso', 'agip', 'total erg',
       'aspit', 'autostrade', 'telepass', 'atac', 'gtt', 'trenitalia',
       'italo', 'parcheggio', 'parking', 'benzina', 'gasolio',
+      'uber', 'ubr*', 'lyft', 'taxi', 'shuttle', 'flixbus', 'blablacar',
+      'amtrak', 'shell ', 'chevron',
     ]),
     MapEntry('Ristoranti e bar', [
       'trattoria', 'ristorante', 'pizzeria', 'osteria', 'hostaria',
       'ostaria', 'gelateria', 'cocktail', 'bar ', 'pub ', 'bistrot',
-      'braceria', 'sushi',
+      'braceria', 'sushi', 'restaurant', 'coffee', 'cafe', 'caffe',
+      'pizza', 'grill', 'tavern', 'diner', 'burger', 'bbq', 'bakery',
+      'panificio', 'breakfast', 'brewing', 'brewery', 'taproom', 'tst*',
+      'mcdonald', 'starbucks', 'panda express', 'in-n-out', 'chipotle',
+      'moondoggies', 'frog & peach', "finney's", 'bistro', 'kitchen',
     ]),
     MapEntry('Shopping', [
       'zara', 'h&m', 'zalando', 'amazon', 'brandy melville', 'store',
-      'boutique', 'outlet',
+      'boutique', 'outlet', 'target', 'tillys', 'world market',
+      'whiz kids', 'toys', 'ikea', 'decathlon', 'mediaworld', 'unieuro',
+      'best buy', 'nike', 'adidas',
     ]),
     MapEntry('Salute e benessere', [
       'farmacia', 'parafarmacia', 'ottica', 'dentist', 'palestra',
-      'fisioterap', 'medic',
+      'fisioterap', 'medic', 'pharmacy', 'cvs', 'walgreens',
     ]),
     MapEntry('Svago', [
-      'cinema', 'teatro', 'concerto', 'ticketone', 'museo',
+      'cinema', 'teatro', 'concerto', 'ticketone', 'museo', 'museum',
+      'theater', 'theatre',
     ]),
     MapEntry('Abbonamenti', [
       'netflix', 'spotify', 'disney', 'prime video', 'icloud',
       'amazon prime', 'youtube premium', 'pagam. rateale',
-      'pagamento rateale',
+      'pagamento rateale', 'anthropic', 'openai', 'chatgpt', 'google one',
+      'dropbox', 'adobe',
     ]),
     MapEntry('Viaggi', [
       'ryanair', 'easyjet', 'ita airways', 'booking.com', 'airbnb',
-      'hotel', 'volo ', 'aeroporto',
+      'hotel', 'volo ', 'aeroporto', 'airlines', 'delta air', 'lufthansa',
+      'motel', 'expedia',
     ]),
     MapEntry('Studio e formazione', [
       'universit', 'libreria', 'corso ', 'formazione',
@@ -538,12 +560,16 @@ class BankStatementParser {
     String description,
     List<String> availableCategoryNames,
   ) {
-    final normalized = description.toLowerCase();
+    final normalized =
+        description.toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
     for (final entry in _categoryKeywords) {
       if (!availableCategoryNames.contains(entry.key)) continue;
       for (final keyword in entry.value) {
-        if (normalized.contains(keyword)) {
+        // Corrispondenza solo a inizio parola: evita falsi positivi come
+        // "esso" dentro "pre-sso" ("Operazione presso ...").
+        final pattern = RegExp('(?<![a-z0-9])${RegExp.escape(keyword)}');
+        if (pattern.hasMatch(normalized)) {
           return entry.key;
         }
       }

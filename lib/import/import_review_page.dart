@@ -39,10 +39,34 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
       final cats = await DatabaseService.instance.getCategories();
       final text =
           await BankStatementParser.extractTextFromPdf(widget.filePath);
-      final parsed = BankStatementParser.parseText(
+      var parsed = BankStatementParser.parseText(
         text,
         cats.map((c) => c.name).toList(),
       );
+
+      // Alcune carte (es. ING) scrivono gli addebiti con il segno meno e i
+      // rimborsi con il più: l'opposto di ciò che si aspetta il tipo "Carta
+      // di credito". Se il documento è un estratto carta e la maggioranza
+      // degli importi è negativa, invertiamo il segno letto così le spese
+      // restano spese e i rimborsi restano entrate, senza dover cambiare
+      // a mano il tipo di documento.
+      final looksLikeCardStatement =
+          RegExp(r'carta\s+di\s+credito', caseSensitive: false).hasMatch(text);
+      final negativeCount =
+          parsed.where((c) => c.statementAmountWasNegative).length;
+      if (looksLikeCardStatement && negativeCount * 2 > parsed.length) {
+        parsed = parsed
+            .map(
+              (c) => ImportedTransactionCandidate(
+                date: c.date,
+                description: c.description,
+                amount: c.amount,
+                statementAmountWasNegative: !c.statementAmountWasNegative,
+                category: c.category,
+              ),
+            )
+            .toList();
+      }
 
       await _flagDuplicates(parsed);
 
