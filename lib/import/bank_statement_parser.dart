@@ -124,9 +124,14 @@ class BankStatementParser {
   }
 
   static List<ImportedTransactionCandidate> parseText(
-    String fullText,
+    String rawText,
     List<String> availableCategoryNames,
   ) {
+    // L'estrazione PDF può usare a capo Windows (\r\n) o vecchio stile Mac
+    // (\r): si riporta tutto a \n, altrimenti le espressioni regolari qui
+    // sotto (che ragionano riga per riga) non riconoscono le date su righe
+    // separate e saltano i movimenti con descrizione su più righe.
+    final fullText = rawText.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     final startMatch = _startMarker.firstMatch(fullText);
     final afterHeader =
         startMatch != null ? fullText.substring(startMatch.end) : fullText;
