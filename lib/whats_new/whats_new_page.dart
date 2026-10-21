@@ -29,6 +29,11 @@ class WhatsNewPage extends StatelessWidget {
   }
 
   Widget _buildScaffold(BuildContext context, HomeColors hc) {
+    final isItalian = AppLanguageController.instance.effectiveLanguageCode ==
+        AppLanguageController.italian;
+    final visibleItems =
+        items.where((item) => !item.italianOnly || isItalian).toList();
+
     return Scaffold(
       backgroundColor: hc.pageBackground,
       body: SafeArea(
@@ -73,7 +78,7 @@ class WhatsNewPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  for (final item in items) ...[
+                  for (final item in visibleItems) ...[
                     _WhatsNewCard(item: item, hc: hc),
                     const SizedBox(height: 12),
                   ],

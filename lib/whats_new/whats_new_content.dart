@@ -33,10 +33,15 @@ class WhatsNewItem {
   final WhatsNewText title;
   final WhatsNewText body;
 
+  /// Se true la voce si mostra solo a chi usa l'app in italiano (serve per
+  /// le funzioni disponibili solo in italiano, come l'assistente).
+  final bool italianOnly;
+
   const WhatsNewItem({
     required this.icon,
     required this.title,
     required this.body,
+    this.italianOnly = false,
   });
 }
 
@@ -92,6 +97,17 @@ const WhatsNewText whatsNewContinue = {
 /// nessuna voce (es. una correzione minore) la schermata non compare.
 const Map<String, List<WhatsNewItem>> whatsNewByVersion = {
   '1.3.3': [
+    WhatsNewItem(
+      icon: Icons.auto_awesome_rounded,
+      italianOnly: true,
+      title: {
+        _it: 'L\'assistente di Liblo',
+      },
+      body: {
+        _it:
+            'Tocca il pulsante al centro della barra in basso e chiedi dove hai speso di più, quanto hai speso in totale o come risparmiare il prossimo mese. Le risposte nascono dai tuoi dati e restano sul telefono.',
+      },
+    ),
     WhatsNewItem(
       icon: Icons.touch_app_outlined,
       title: {
