@@ -46,6 +46,24 @@ class ImportedTransactionCandidate {
   }
 }
 
+/// Esito del controllo dei totali: confronta quanto letto dal parser con i
+/// totali che l'estratto stesso riporta, per accorgersi di movimenti
+/// mancanti o letti male.
+class StatementTotalsCheck {
+  final bool matches;
+
+  /// Totali dichiarati dall'estratto e totali letti, già formattati
+  /// (es. "-728,84 €" oppure "entrate 1.101,08 € · uscite 1.564,14 €").
+  final String expectedText;
+  final String foundText;
+
+  const StatementTotalsCheck({
+    required this.matches,
+    required this.expectedText,
+    required this.foundText,
+  });
+}
+
 /// Parser generico per estratti conto PDF. Riconosce righe nella forma
 /// "data [data] descrizione importo", lo schema più comune tra le banche
 /// italiane, indipendentemente da come il testo viene spezzato in righe
@@ -118,6 +136,100 @@ class BankStatementParser {
     caseSensitive: false,
     multiLine: true,
   );
+
+  static double? _parseItalianNumber(String text) {
+    return double.tryParse(
+      text.trim().replaceAll('.', '').replaceAll(',', '.'),
+    );
+  }
+
+  static String _formatEuro(double value) {
+    final negative = value < 0;
+    final fixed = value.abs().toStringAsFixed(2);
+    final parts = fixed.split('.');
+    final integer = parts[0].replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => '.',
+    );
+    return '${negative ? '-' : ''}$integer,${parts[1]} €';
+  }
+
+  /// Confronta i movimenti letti con i totali riportati dall'estratto.
+  /// Va chiamato PRIMA di qualsiasi inversione di segno. Restituisce null
+  /// se nel documento non si trova un totale riconoscibile (in quel caso
+  /// non si può dire nulla, e l'app non mostra alcun avviso).
+  ///
+  /// Due schemi, quelli dei formati supportati:
+  /// - riepilogo del conto con saldo iniziale, entrate, uscite, saldo
+  ///   finale (es. Trade Republic): si confrontano entrate e uscite;
+  /// - riga "Totale" a fine elenco (es. carta ING): si confronta con la
+  ///   somma con segno dei movimenti (o col suo valore assoluto).
+  static StatementTotalsCheck? verifyTotals(
+    String rawText,
+    List<ImportedTransactionCandidate> parsed,
+  ) {
+    if (parsed.isEmpty) return null;
+    final text = rawText.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    const tolerance = 0.02;
+
+    double income = 0;
+    double expenses = 0;
+    for (final c in parsed) {
+      if (c.statementAmountWasNegative) {
+        expenses += c.amount;
+      } else {
+        income += c.amount;
+      }
+    }
+
+    final summary = RegExp(
+      r'Conto\s+corrente\s+(-?[\d.,]+)\s*€\s+([\d.,]+)\s*€\s+'
+      r'([\d.,]+)\s*€\s+(-?[\d.,]+)\s*€',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (summary != null) {
+      final expectedIn = _parseItalianNumber(summary.group(2)!);
+      final expectedOut = _parseItalianNumber(summary.group(3)!);
+      if (expectedIn != null && expectedOut != null) {
+        final ok = (expectedIn - income).abs() < tolerance &&
+            (expectedOut - expenses).abs() < tolerance;
+        return StatementTotalsCheck(
+          matches: ok,
+          expectedText: 'entrate ${_formatEuro(expectedIn)} · '
+              'uscite ${_formatEuro(expectedOut)}',
+          foundText: 'entrate ${_formatEuro(income)} · '
+              'uscite ${_formatEuro(expenses)}',
+        );
+      }
+    }
+
+    // Riga "Totale" a sé, seguita (anche a capo) dall'importo.
+    RegExpMatch? totalMatch;
+    for (final m in RegExp(
+      r'^[ \t]*TOTALE[ \t]*\n?[ \t]*(-?\d{1,3}(?:\.\d{3})*,\d{2})'
+      r'[ \t]*(?:€|EUR)?[ \t]*$',
+      caseSensitive: false,
+      multiLine: true,
+    ).allMatches(text)) {
+      totalMatch = m;
+    }
+    if (totalMatch != null) {
+      final expected = _parseItalianNumber(totalMatch.group(1)!);
+      if (expected != null) {
+        final signed = income - expenses;
+        final absolute = income + expenses;
+        final ok = (expected - signed).abs() < tolerance ||
+            (expected.abs() - absolute).abs() < tolerance;
+        return StatementTotalsCheck(
+          matches: ok,
+          expectedText: _formatEuro(expected),
+          foundText: _formatEuro(signed),
+        );
+      }
+    }
+
+    return null;
+  }
 
   static Future<String> extractTextFromPdf(String filePath) async {
     final bytes = await File(filePath).readAsBytes();

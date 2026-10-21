@@ -26,6 +26,7 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
   String? errorMessage;
   StatementDocumentType documentType = StatementDocumentType.creditCard;
   List<ImportedTransactionCandidate> candidates = [];
+  StatementTotalsCheck? totalsCheck;
   List<ExpenseCategory> categories = [];
 
   @override
@@ -43,6 +44,9 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
         text,
         cats.map((c) => c.name).toList(),
       );
+
+      // Controllo dei totali sul testo originale, prima di toccare i segni.
+      final check = BankStatementParser.verifyTotals(text, parsed);
 
       // Alcune carte (es. ING) scrivono gli addebiti con il segno meno e i
       // rimborsi con il più: l'opposto di ciò che si aspetta il tipo "Carta
@@ -84,6 +88,7 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
       if (!mounted) return;
       setState(() {
         documentType = detectedType;
+        totalsCheck = check;
         categories = cats;
         candidates = parsed;
         loading = false;
@@ -284,8 +289,52 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
       );
     }
 
+    final check = totalsCheck;
+
     return Column(
       children: [
+        if (check != null)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (check.matches
+                      ? const Color(0xFF2E8B6E)
+                      : const Color(0xFFB8862A))
+                  .withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  check.matches
+                      ? Icons.check_circle_outline
+                      : Icons.warning_amber_rounded,
+                  size: 20,
+                  color: check.matches
+                      ? const Color(0xFF2E8B6E)
+                      : const Color(0xFFB8862A),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    check.matches
+                        ? le(
+                            'Totali controllati: i movimenti letti coincidono con l\'estratto (${check.expectedText}).',
+                            'Totals checked: the movements read match the statement (${check.expectedText}).',
+                          )
+                        : le(
+                            'Attenzione: i movimenti letti (${check.foundText}) non coincidono con i totali dell\'estratto (${check.expectedText}). Potrebbe mancare qualcosa: controlla prima di importare.',
+                            'Warning: the movements read (${check.foundText}) do not match the statement totals (${check.expectedText}). Something may be missing: please check before importing.',
+                          ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: SegmentedButton<StatementDocumentType>(
