@@ -17,9 +17,18 @@ class WhatsNewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hc = HomeColors.of(context);
-    final italian = AppLanguageController.instance.effectiveLanguageCode ==
-        AppLanguageController.italian;
 
+    // Le pagine aperte sopra la Home non ereditano la direzione del testo
+    // (serve per l'arabo, da destra a sinistra), quindi la impostiamo qui.
+    return Directionality(
+      textDirection: AppLanguageController.instance.isRTL
+          ? TextDirection.rtl
+          : TextDirection.ltr,
+      child: _buildScaffold(context, hc),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, HomeColors hc) {
     return Scaffold(
       backgroundColor: hc.pageBackground,
       body: SafeArea(
@@ -46,7 +55,7 @@ class WhatsNewPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    le('Novità di Liblo', 'What\'s new in Liblo'),
+                    whatsNewText(whatsNewHeading),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 26,
@@ -56,7 +65,7 @@ class WhatsNewPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    le('Versione $version', 'Version $version'),
+                    whatsNewText(whatsNewVersionLabel).replaceAll('{v}', version),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -65,7 +74,7 @@ class WhatsNewPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 28),
                   for (final item in items) ...[
-                    _WhatsNewCard(item: item, italian: italian, hc: hc),
+                    _WhatsNewCard(item: item, hc: hc),
                     const SizedBox(height: 12),
                   ],
                 ],
@@ -86,7 +95,7 @@ class WhatsNewPage extends StatelessWidget {
                   ),
                   onPressed: () => Navigator.of(context).pop(),
                   child: Text(
-                    le('Continua', 'Continue'),
+                    whatsNewText(whatsNewContinue),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -104,12 +113,10 @@ class WhatsNewPage extends StatelessWidget {
 
 class _WhatsNewCard extends StatelessWidget {
   final WhatsNewItem item;
-  final bool italian;
   final HomeColors hc;
 
   const _WhatsNewCard({
     required this.item,
-    required this.italian,
     required this.hc,
   });
 
@@ -140,7 +147,7 @@ class _WhatsNewCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.title(italian),
+                  whatsNewText(item.title),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -149,7 +156,7 @@ class _WhatsNewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  item.body(italian),
+                  whatsNewText(item.body),
                   style: TextStyle(
                     fontSize: 14,
                     height: 1.35,
