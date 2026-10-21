@@ -5,6 +5,7 @@ import 'cloud_sync/icloud_sync_service.dart';
 import 'currency/app_currency.dart';
 import 'database/database_service.dart';
 import 'localization/app_language.dart';
+import 'quick_actions/quick_actions_service.dart';
 import 'security/biometric_gate.dart';
 import 'security/biometric_security.dart';
 import 'theme/app_theme_controller.dart';
@@ -22,6 +23,9 @@ Future<void> main() async {
   final dbPath = await DatabaseService.instance.getDatabaseFilePath();
   final versionPath = await DatabaseService.instance.getDataVersionFilePath();
   await ICloudSyncService.downloadIfNewer(dbPath, versionPath);
+  // Scorciatoie dell'icona (pressione prolungata): la lingua è già caricata,
+  // quindi il titolo "Nuovo movimento" esce subito nella lingua giusta.
+  QuickActionsService.instance.initialize();
   runApp(const PersonalFinanceApp());
 }
 

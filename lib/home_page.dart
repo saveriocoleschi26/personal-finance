@@ -12,6 +12,7 @@ import 'database/database_service.dart';
 import 'localization/app_language.dart';
 import 'monthly_carryover/monthly_balance_calculator.dart';
 import 'planned_expenses/planned_expense.dart';
+import 'quick_actions/quick_actions_service.dart';
 import 'receipt_scan/receipt_scan_result.dart';
 import 'receipt_scan/scan_receipt_page.dart';
 import 'settings/settings_page.dart';
@@ -158,8 +159,15 @@ class _HomePageState extends State<HomePage>
 
     WidgetsBinding.instance.addObserver(this);
     widget.refreshNotifier.addListener(_externalRefresh);
+    QuickActionsService.instance.requests.addListener(_onQuickActionRequest);
     _scheduleMonthBoundaryRefresh();
     loadSelectedMonthData();
+
+    // Se l'app è stata aperta (o sbloccata) proprio tramite la scorciatoia
+    // "Nuovo movimento", la richiesta è già in attesa: la serviamo ora.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onQuickActionRequest();
+    });
   }
 
   @override
@@ -169,7 +177,46 @@ class _HomePageState extends State<HomePage>
     searchController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     widget.refreshNotifier.removeListener(_externalRefresh);
+    QuickActionsService.instance.requests.removeListener(_onQuickActionRequest);
     super.dispose();
+  }
+
+  void _onQuickActionRequest() {
+    // Piccola attesa: se l'app sta per bloccarsi (Face ID dopo qualche
+    // secondo in background) la Home viene smontata subito, e così non
+    // apriamo la schermata sopra al blocco. In quel caso la richiesta resta
+    // in attesa e la serve la nuova Home appena l'utente sblocca.
+    Future<void>.delayed(
+      const Duration(milliseconds: 350),
+      _handleQuickAction,
+    );
+  }
+
+  Future<void> _handleQuickAction() async {
+    if (!mounted) return;
+    if (!QuickActionsService.instance.takeAddTransactionRequest()) return;
+
+    // Se l'utente era su un'altra pagina (impostazioni, dettaglio…)
+    // torniamo prima alla Home, poi apriamo la registrazione.
+    Navigator.of(context).popUntil((route) => route.isFirst);
+
+    // La registrazione di un movimento è consentita solo nel mese
+    // corrente: se si stava guardando un mese passato, si torna a oggi.
+    if (!isCurrentMonth) {
+      final now = DateTime.now();
+      setState(() {
+        selectedMonth = DateTime(now.year, now.month, 1);
+        isLoading = true;
+        touchedCategoryIndex = -1;
+        showAllTransactions = false;
+        isSelectionMode = false;
+        selectedTransactionIds.clear();
+        isCarryoverSelected = false;
+      });
+      unawaited(loadSelectedMonthData());
+    }
+
+    await _openAddTransactionPage();
   }
 
   @override
