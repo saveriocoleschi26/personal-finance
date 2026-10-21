@@ -49,6 +49,7 @@ dependencies:
   excel_plus: ^2.12.4
   file_picker: ^10.3.10
   quick_actions: ^1.1.0
+  package_info_plus: 9.0.1
 
 dev_dependencies:
   flutter_test:

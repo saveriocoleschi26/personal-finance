@@ -28,8 +28,14 @@ class ReceiptScannerService {
     final inputImage = InputImage.fromFilePath(imagePath);
     final recognizedText = await _recognizer.processImage(inputImage);
 
-    final rawText = recognizedText.text;
+    return parseText(recognizedText.text);
+  }
 
+  /// Estrae importo, data ed esercente da un testo già riconosciuto.
+  /// Separato da [scan] così la logica si può provare senza fotocamera né
+  /// OCR (vedi test/receipt_parse_test.dart). [englishApp] forza la lingua
+  /// dell'app nei test; di norma si legge dalle impostazioni.
+  static ReceiptScanResult parseText(String rawText, {bool? englishApp}) {
     // Manteniamo l'ordine dall'alto verso il basso così come restituito
     // dall'OCR: è l'informazione più affidabile che abbiamo sulla
     // posizione del testo nello scontrino (es. l'esercente è in cima,
@@ -42,7 +48,10 @@ class ReceiptScannerService {
 
     return ReceiptScanResult(
       amount: _extractAmount(lines),
-      date: _extractDate(lines, preferMonthFirst: _prefersMonthFirst(rawText)),
+      date: _extractDate(
+        lines,
+        preferMonthFirst: _prefersMonthFirst(rawText, englishApp),
+      ),
       merchant: _extractMerchant(lines),
       rawText: rawText,
     );
@@ -85,7 +94,7 @@ class ReceiptScannerService {
   // Righe che contengono "total" ma non sono il totale finale: subtotali,
   // tasse, mancia, resto, sconti, numero di articoli, punti fedeltà.
   static final RegExp _notTotalPattern = RegExp(
-    r'(sub\s*-?\s*total|subtotale|\btax\b|\btip\b|gratuity|change|'
+    r'(sub\s*-?\s*total|subtotale|\btax\b|(?<!with )(?<!incl )\btip\b|gratuity|change|'
     r'cash|tender|savings|discount|sconto|resto|contanti|\bitems?\b|'
     r'\bpoints?\b|rewards?)',
     caseSensitive: false,
@@ -253,8 +262,9 @@ class ReceiptScannerService {
     ).hasMatch(text);
   }
 
-  static bool _prefersMonthFirst(String text) {
-    return AppLanguageController.instance.isEnglish || _looksAmerican(text);
+  static bool _prefersMonthFirst(String text, bool? englishApp) {
+    final english = englishApp ?? AppLanguageController.instance.isEnglish;
+    return english || _looksAmerican(text);
   }
 
   static DateTime? _extractDate(
@@ -360,7 +370,7 @@ class ReceiptScannerService {
     r'piazza\s|cap\s|tel\.?|scontrino|ricevuta|'
     r'phone|receipt|invoice|street\s|avenue|blvd|suite\s|'
     r'welcome to|thank you|customer copy|merchant copy|'
-    r'\d{5,})',
+    r'\d{7,})',
     caseSensitive: false,
   );
 
@@ -373,6 +383,12 @@ class ReceiptScannerService {
       if (line.length < 3) continue;
       // Indirizzo americano ("123 Higuera St"): inizia con il numero civico.
       if (RegExp(r'^\d{1,5}\s+\S').hasMatch(line)) continue;
+      // Riga città/stato/CAP americana ("SAN LUIS OBISPO CA 93401") o CAP
+      // italiano a inizio riga ("50100 FIRENZE").
+      if (RegExp(r'\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b').hasMatch(line) ||
+          RegExp(r'^\d{5}\s').hasMatch(line)) {
+        continue;
+      }
       if (_merchantNoisePattern.hasMatch(line)) continue;
       if (_looksLikeDateLine(line)) continue;
       if (_amountPattern.hasMatch(line)) continue;
@@ -380,7 +396,7 @@ class ReceiptScannerService {
       // Una riga plausibile per il nome dell'esercente: contiene
       // prevalentemente lettere.
       final letterCount = line.replaceAll(RegExp(r'[^A-Za-zÀ-ÿ]'), '').length;
-      if (letterCount < line.length * 0.5) continue;
+      if (letterCount < line.length * 0.4) continue;
 
       return line;
     }

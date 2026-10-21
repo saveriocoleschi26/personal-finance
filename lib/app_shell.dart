@@ -7,6 +7,7 @@ import 'home_page.dart';
 import 'localization/app_language.dart';
 import 'onboarding/onboarding_page.dart';
 import 'planning/planning_page.dart';
+import 'whats_new/whats_new_service.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -65,7 +66,19 @@ class _AppShellState extends State<AppShell> {
       'onboarding_completed',
     );
 
-    if (!mounted || completed) return;
+    if (!mounted) return;
+
+    if (completed) {
+      // Utente già avviato: se l'app è appena stata aggiornata, mostriamo
+      // le novità (una sola volta per versione).
+      await WhatsNewService.showIfNeeded(context);
+      return;
+    }
+
+    // Prima installazione: la guida spiega già tutto, quindi la versione
+    // corrente viene segnata come vista senza mostrare le novità.
+    await WhatsNewService.markCurrentVersionSeen();
+    if (!mounted) return;
 
     await Navigator.push(
       context,
