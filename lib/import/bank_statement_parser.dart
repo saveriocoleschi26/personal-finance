@@ -23,6 +23,11 @@ class ImportedTransactionCandidate {
   bool looksLikeDuplicate;
   bool selected;
 
+  /// Se valorizzato, il movimento non è una vera spesa/entrata (es. un
+  /// giroconto tra propri conti o un acquisto/vendita di titoli) e per
+  /// questo parte deselezionato. Valori: 'transfer', 'investment'.
+  final String? skipReason;
+
   ImportedTransactionCandidate({
     required this.date,
     required this.description,
@@ -31,6 +36,7 @@ class ImportedTransactionCandidate {
     required this.category,
     this.looksLikeDuplicate = false,
     this.selected = true,
+    this.skipReason,
   });
 
   bool isIncomeFor(StatementDocumentType documentType) {
@@ -332,7 +338,7 @@ class BankStatementParser {
   // invece è la cosa che tiene la ricerca dentro i confini di una riga.
   static final RegExp _rowPatternTextDateWithBalance = RegExp(
     r'(\d{1,2})\s+([A-Za-zÀ-ÿ]{3})\.?\s+(\d{4})\s+(\S+)\s+(.+?)\s+'
-    r'([\d.,]+)\s*€\s+([\d.,]+)\s*€',
+    r'([\d.,]+)\s*€\s+(-?[\d.,]+)\s*€',
     dotAll: true,
   );
 
@@ -380,6 +386,12 @@ class BankStatementParser {
         ? afterHeader.substring(0, stopMatch.start)
         : afterHeader;
 
+    // Intestazione del documento (titolare, IBAN...): serve a riconoscere i
+    // giroconti verso se stessi, il cui nome compare anche lì.
+    final headerText = startMatch != null
+        ? fullText.substring(0, startMatch.start).toLowerCase()
+        : '';
+
     final results = <ImportedTransactionCandidate>[];
 
     for (final match
@@ -390,8 +402,9 @@ class BankStatementParser {
       final month = _italianMonthAbbreviations[monthAbbr];
       // Ripulisce la descrizione: quando ha attraversato un "a capo"
       // (dotAll), può contenere spazi/ritorni a capo multipli di fila.
-      final descriptionText =
-          match.group(5)!.trim().replaceAll(RegExp(r'\s+'), ' ');
+      final descriptionText = _cleanAccountMovementDescription(
+        match.group(5)!.trim().replaceAll(RegExp(r'\s+'), ' '),
+      );
       final amountText = match.group(6)!;
       final newBalanceText = match.group(7)!;
 
@@ -409,6 +422,8 @@ class BankStatementParser {
       final isIncome = newBalance > runningBalance;
       runningBalance = newBalance;
 
+      final skipReason = _skipReasonFor(descriptionText, headerText);
+
       results.add(
         ImportedTransactionCandidate(
           date: DateTime(year, month, day, 12),
@@ -416,11 +431,56 @@ class BankStatementParser {
           amount: amount,
           statementAmountWasNegative: !isIncome,
           category: guessCategory(descriptionText, availableCategoryNames),
+          selected: skipReason == null,
+          skipReason: skipReason,
         ),
       );
     }
 
     return results;
+  }
+
+  // Ripulisce la descrizione di un movimento di conto: toglie il resto del
+  // tipo ("con carta"), i dettagli del cambio valuta ("31,00 $, exchange
+  // rate: ...") e l'IBAN tra parentesi, lasciando solo il nome utile.
+  static String _cleanAccountMovementDescription(String description) {
+    var text = description.replaceAll(RegExp(r'\s+'), ' ').trim();
+    text = text.replaceFirst(
+      RegExp(r'^con carta\s+', caseSensitive: false),
+      '',
+    );
+    text = text.replaceFirst(
+      RegExp(r',\s*[\d.,]+\s*\S{1,3}\s*,\s*exchange rate:.*$',
+          caseSensitive: false),
+      '',
+    );
+    text = text.replaceAll(
+      RegExp(r'\s*\([A-Z]{2}\d{2}[A-Z0-9]{10,30}\)'),
+      '',
+    );
+    text = text.trim();
+    return text.isEmpty ? description.trim() : text;
+  }
+
+  // Riconosce i movimenti che non sono vere spese o entrate:
+  // - 'investment': acquisto/vendita di titoli o piano di accumulo;
+  // - 'transfer': bonifico da/verso un nome che compare anche
+  //   nell'intestazione del documento, cioè un giroconto fra propri conti.
+  static String? _skipReasonFor(String description, String headerText) {
+    if (RegExp(r'\b(buy|sell)\s+trade\b|savings\s+plan',
+            caseSensitive: false)
+        .hasMatch(description)) {
+      return 'investment';
+    }
+    final transfer = RegExp(
+      r'transfer\s+(?:for|from)\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(description);
+    if (transfer != null && headerText.isNotEmpty) {
+      final name = transfer.group(1)!.trim().toLowerCase();
+      if (name.length >= 5 && headerText.contains(name)) return 'transfer';
+    }
+    return null;
   }
 
   static ImportedTransactionCandidate? _buildCandidate({

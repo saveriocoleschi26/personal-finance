@@ -63,15 +63,27 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
                 amount: c.amount,
                 statementAmountWasNegative: !c.statementAmountWasNegative,
                 category: c.category,
+                skipReason: c.skipReason,
+                selected: c.selected,
               ),
             )
             .toList();
+      }
+
+      // Se NON è un estratto carta e la maggioranza degli importi è negativa
+      // (uscite col segno meno), è un conto corrente: scegliamo noi il tipo
+      // giusto invece di lasciare "Carta di credito", che mostrerebbe le
+      // spese come entrate.
+      var detectedType = StatementDocumentType.creditCard;
+      if (!looksLikeCardStatement && negativeCount * 2 > parsed.length) {
+        detectedType = StatementDocumentType.currentAccount;
       }
 
       await _flagDuplicates(parsed);
 
       if (!mounted) return;
       setState(() {
+        documentType = detectedType;
         categories = cats;
         candidates = parsed;
         loading = false;
@@ -115,7 +127,7 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
       );
 
       candidate.looksLikeDuplicate = isDuplicate;
-      candidate.selected = !isDuplicate;
+      candidate.selected = !isDuplicate && candidate.skipReason == null;
     }
   }
 
@@ -344,10 +356,13 @@ class _CandidateCard extends StatelessWidget {
         color: hc.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: candidate.looksLikeDuplicate
+          color: (candidate.looksLikeDuplicate || candidate.skipReason != null)
               ? const Color(0xFFE0A83C)
               : hc.border,
-          width: candidate.looksLikeDuplicate ? 1.4 : 1,
+          width:
+              (candidate.looksLikeDuplicate || candidate.skipReason != null)
+                  ? 1.4
+                  : 1,
         ),
       ),
       child: Column(
@@ -391,6 +406,25 @@ class _CandidateCard extends StatelessWidget {
               ),
             ],
           ),
+          if (!candidate.looksLikeDuplicate && candidate.skipReason != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 44, top: 2, bottom: 4),
+              child: Text(
+                candidate.skipReason == 'transfer'
+                    ? le(
+                        'Giroconto tra tuoi conti: non selezionato',
+                        'Transfer between your accounts: not selected',
+                      )
+                    : le(
+                        'Investimento, non una spesa: non selezionato',
+                        'Investment, not an expense: not selected',
+                      ),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFFB8862A),
+                ),
+              ),
+            ),
           if (candidate.looksLikeDuplicate)
             Padding(
               padding: const EdgeInsets.only(left: 44, top: 2, bottom: 4),
