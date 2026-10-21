@@ -42,7 +42,7 @@ class ReceiptScannerService {
 
     return ReceiptScanResult(
       amount: _extractAmount(lines),
-      date: _extractDate(lines),
+      date: _extractDate(lines, preferMonthFirst: _prefersMonthFirst(rawText)),
       merchant: _extractMerchant(lines),
       rawText: rawText,
     );
@@ -64,69 +64,127 @@ class ReceiptScannerService {
     r'|\d+[.,]\d{2}',
   );
 
-  static const List<String> _totalKeywords = [
-    // Italiano
-    'totale complessivo',
-    'totale euro',
-    'totale eur',
-    'totale',
-    'tot.',
-    'tot ',
-    'importo pagato',
-    'importo',
-    // Inglese (US)
-    'grand total',
-    'total due',
-    'amount due',
-    'balance due',
-    'total',
-  ];
+  // Riga composta solo da un importo (con eventuale $, €, USD/EUR): sugli
+  // scontrini l'OCR spesso separa l'etichetta ("Total") dal numero, che
+  // finisce sulla riga successiva.
+  static final RegExp _amountOnlyLinePattern = RegExp(
+    r'^[\s$€£]*(?:USD|EUR)?\s*'
+    r'(\d{1,3}(?:,\d{3})+\.\d{2}|\d{1,3}(?:\.\d{3})+,\d{2}|\d+[.,]\d{2})'
+    r'\s*(?:USD|EUR|€|\$)?\s*$',
+    caseSensitive: false,
+  );
+
+  // Etichette che indicano il totale da pagare, italiane e americane.
+  static final RegExp _totalLabelPattern = RegExp(
+    r'(totale complessivo|totale euro|totale eur|totale|tot\.|tot |'
+    r'importo pagato|importo|grand total|total due|amount due|'
+    r'balance due|total amount|\btotal\b)',
+    caseSensitive: false,
+  );
+
+  // Righe che contengono "total" ma non sono il totale finale: subtotali,
+  // tasse, mancia, resto, sconti, numero di articoli, punti fedeltà.
+  static final RegExp _notTotalPattern = RegExp(
+    r'(sub\s*-?\s*total|subtotale|\btax\b|\btip\b|gratuity|change|'
+    r'cash|tender|savings|discount|sconto|resto|contanti|\bitems?\b|'
+    r'\bpoints?\b|rewards?)',
+    caseSensitive: false,
+  );
+
+  // Righe di contanti/resto: da ignorare anche quando si ripiega sul
+  // "numero più grande", perché i contanti dati sono spesso più alti del
+  // totale (es. "Cash 100.00" su un conto da 64.00).
+  static final RegExp _tenderPattern = RegExp(
+    r'(cash|tender|change|resto|contanti)',
+    caseSensitive: false,
+  );
+
+  static List<double> _amountsIn(String line) {
+    final values = <double>[];
+    for (final match in _amountPattern.allMatches(line)) {
+      // Un numero seguito da '%' è quasi certamente un'aliquota
+      // (IVA/tax), non un importo: lo scartiamo del tutto.
+      final nextChar = match.end < line.length ? line[match.end] : '';
+      if (nextChar == '%') continue;
+      final value = _parseAmount(match.group(0)!);
+      if (value != null) values.add(value);
+    }
+    return values;
+  }
+
+  // Caso in cui l'OCR restituisce prima tutte le etichette
+  // ("Subtotal", "Tax", "Tip", "Total") e poi tutti gli importi, ciascuno
+  // su una riga, nello stesso ordine. L'etichetta alla riga [i] senza
+  // importo viene abbinata all'importo nella stessa posizione contando
+  // dalla fine del blocco di etichette (il blocco degli importi è
+  // allineato con le ultime etichette). Con una sola etichetta seguita
+  // da un importo è il caso semplice "Total" / "6.00".
+  static double? _amountFromSeparateColumn(List<String> lines, int i) {
+    var labelsEnd = i;
+    while (labelsEnd + 1 < lines.length &&
+        _amountsIn(lines[labelsEnd + 1]).isEmpty) {
+      labelsEnd++;
+    }
+
+    final amounts = <String>[];
+    for (var j = labelsEnd + 1; j < lines.length; j++) {
+      final match = _amountOnlyLinePattern.firstMatch(lines[j]);
+      if (match == null) break;
+      amounts.add(match.group(1)!);
+    }
+    if (amounts.isEmpty) return null;
+
+    final index = amounts.length - 1 - (labelsEnd - i);
+    if (index < 0) return null;
+    return _parseAmount(amounts[index]);
+  }
 
   static double? _extractAmount(List<String> lines) {
     double? bestFromKeyword;
     double? largestOverall;
 
-    for (final line in lines) {
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
       final lower = line.toLowerCase();
-      final matches = _amountPattern.allMatches(line);
+      final values = _amountsIn(line);
 
-      for (final match in matches) {
-        // Un numero seguito da '%' è quasi certamente un'aliquota
-        // (IVA/tax), non un importo: lo scartiamo del tutto.
-        final nextChar = match.end < line.length ? line[match.end] : '';
-        if (nextChar == '%') continue;
-
-        final value = _parseAmount(match.group(0)!);
-        if (value == null) continue;
-
-        if (largestOverall == null || value > largestOverall) {
-          largestOverall = value;
-        }
-
-        final isTotalLine =
-            _totalKeywords.any((keyword) => lower.contains(keyword));
-
-        // Scartiamo righe che sembrano codici fiscali, numeri di
-        // scontrino o percentuali IVA piuttosto che importi.
-        final looksLikeNoise = lower.contains('iva %') ||
-            lower.contains('n.') && !isTotalLine ||
-            lower.contains('scontrino');
-
-        if (isTotalLine && !looksLikeNoise) {
-          // Tra più righe "totale" (capita con subtotali/resti),
-          // teniamo l'importo più alto: il totale finale è quasi
-          // sempre il valore più grande tra quelli etichettati.
-          if (bestFromKeyword == null || value > bestFromKeyword) {
-            bestFromKeyword = value;
+      if (!_tenderPattern.hasMatch(lower)) {
+        for (final value in values) {
+          if (largestOverall == null || value > largestOverall) {
+            largestOverall = value;
           }
+        }
+      }
+
+      if (!_totalLabelPattern.hasMatch(lower)) continue;
+      if (_notTotalPattern.hasMatch(lower)) continue;
+
+      // Scartiamo righe che sembrano numeri di scontrino o percentuali
+      // IVA piuttosto che importi.
+      final looksLikeNoise =
+          lower.contains('iva %') || lower.contains('scontrino');
+      if (looksLikeNoise) continue;
+
+      var candidates = values;
+      if (candidates.isEmpty) {
+        // Etichetta e importo su righe diverse.
+        final value = _amountFromSeparateColumn(lines, i);
+        if (value != null) candidates = [value];
+      }
+
+      // Tra più righe "totale" (capita con subtotali/resti) teniamo
+      // l'importo più alto: il totale finale è quasi sempre il valore
+      // più grande tra quelli etichettati.
+      for (final value in candidates) {
+        if (bestFromKeyword == null || value > bestFromKeyword) {
+          bestFromKeyword = value;
         }
       }
     }
 
     // Preferiamo un importo associato esplicitamente a una parola chiave
     // di totale; se non lo troviamo, ripieghiamo sul numero più grande
-    // presente nel testo (euristica ragionevole: il totale è quasi
-    // sempre l'importo maggiore su uno scontrino).
+    // presente nel testo (escluse le righe di contanti/resto).
     return bestFromKeyword ?? largestOverall;
   }
 
@@ -179,11 +237,35 @@ class ReceiptScannerService {
         _monthNameDatePattern.hasMatch(line);
   }
 
-  static DateTime? _extractDate(List<String> lines) {
+  // Vero se lo scontrino sembra americano, così "10/05/2026" si legge come
+  // 5 ottobre e non 10 maggio anche quando l'app è in italiano (tipico di
+  // chi viaggia negli USA). Indizi: simbolo $, USD, CAP americano con
+  // sigla dello stato (es. "CA 93401") o parole tipiche delle ricevute
+  // USA (subtotal, sales tax, tip, thank you).
+  static bool _looksAmerican(String text) {
+    if (text.contains(r'$')) return true;
+    if (RegExp(r'\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b').hasMatch(text)) {
+      return true;
+    }
+    return RegExp(
+      r'\b(usd|subtotal|sub total|sales tax|tip|gratuity|thank you)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+  }
+
+  static bool _prefersMonthFirst(String text) {
+    return AppLanguageController.instance.isEnglish || _looksAmerican(text);
+  }
+
+  static DateTime? _extractDate(
+    List<String> lines, {
+    required bool preferMonthFirst,
+  }) {
     final now = DateTime.now();
 
     for (final line in lines) {
-      final candidate = _parseMonthNameDate(line) ?? _parseNumericDate(line);
+      final candidate = _parseMonthNameDate(line) ??
+          _parseNumericDate(line, preferMonthFirst: preferMonthFirst);
       if (candidate == null) continue;
 
       // Scartiamo date palesemente sbagliate (OCR che confonde un altro
@@ -221,7 +303,10 @@ class ReceiptScannerService {
     }
   }
 
-  static DateTime? _parseNumericDate(String line) {
+  static DateTime? _parseNumericDate(
+    String line, {
+    required bool preferMonthFirst,
+  }) {
     final match = _numericDatePattern.firstMatch(line);
     if (match == null) return null;
 
@@ -239,8 +324,6 @@ class ReceiptScannerService {
     // (es. "17/09" letto come mm/gg darebbe mese 17), proviamo lo
     // scambio: capita spesso che un solo ordine sia effettivamente
     // valido, il che toglie l'ambiguità.
-    final preferMonthFirst = AppLanguageController.instance.isEnglish;
-
     int? day;
     int? month;
 
@@ -276,6 +359,7 @@ class ReceiptScannerService {
     r'(p\.?\s*iva|partita iva|c\.?f\.?|codice fiscale|via\s|viale\s|corso\s|'
     r'piazza\s|cap\s|tel\.?|scontrino|ricevuta|'
     r'phone|receipt|invoice|street\s|avenue|blvd|suite\s|'
+    r'welcome to|thank you|customer copy|merchant copy|'
     r'\d{5,})',
     caseSensitive: false,
   );
@@ -285,8 +369,10 @@ class ReceiptScannerService {
     // maiuscolo. Se l'utente ha fotografato solo il fondo dello
     // scontrino, queste righe non ci saranno: in quel caso restituiamo
     // semplicemente null, senza inventare nulla.
-    for (final line in lines.take(5)) {
+    for (final line in lines.take(6)) {
       if (line.length < 3) continue;
+      // Indirizzo americano ("123 Higuera St"): inizia con il numero civico.
+      if (RegExp(r'^\d{1,5}\s+\S').hasMatch(line)) continue;
       if (_merchantNoisePattern.hasMatch(line)) continue;
       if (_looksLikeDateLine(line)) continue;
       if (_amountPattern.hasMatch(line)) continue;
