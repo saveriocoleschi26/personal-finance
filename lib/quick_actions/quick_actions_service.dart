@@ -13,7 +13,7 @@ import '../localization/app_language.dart';
 /// che l'utente ha scelto una scorciatoia e a "suonare il campanello"
 /// ([requests]). La Home, che è l'unica a sapere quando è sicuro mostrare
 /// una schermata (app sbloccata, mese corrente, nessun'altra pagina
-/// sopra), raccoglie la richiesta con [takeAddTransactionRequest].
+/// sopra), raccoglie la richiesta con [takePendingAction].
 ///
 /// Questo evita due problemi:
 /// - con Face ID attivo la Home non esiste finché l'app è bloccata, quindi
@@ -26,10 +26,12 @@ class QuickActionsService {
   static final QuickActionsService instance = QuickActionsService._();
 
   static const String addTransactionType = 'add_transaction';
+  static const String scanReceiptType = 'scan_receipt';
 
-  // Nome dell'immagine (template) nell'asset catalog di iOS. Se l'immagine
-  // non esiste la scorciatoia compare comunque, solo senza icona.
+  // Nomi delle immagini (template) nell'asset catalog di iOS. Se
+  // un'immagine non esiste la scorciatoia compare comunque, senza icona.
   static const String _iosAddIcon = 'QuickAddTransaction';
+  static const String _iosScanIcon = 'QuickScanReceipt';
 
   static const Duration _requestValidity = Duration(seconds: 90);
 
@@ -38,7 +40,8 @@ class QuickActionsService {
   /// Aumenta di uno ogni volta che l'utente sceglie una scorciatoia.
   final ValueNotifier<int> requests = ValueNotifier<int>(0);
 
-  DateTime? _addTransactionRequestedAt;
+  String? _pendingType;
+  DateTime? _pendingRequestedAt;
   bool _initialized = false;
 
   /// Da chiamare una sola volta all'avvio, dopo il caricamento della lingua.
@@ -60,8 +63,9 @@ class QuickActionsService {
   }
 
   void _handleAction(String type) {
-    if (type != addTransactionType) return;
-    _addTransactionRequestedAt = DateTime.now();
+    if (type != addTransactionType && type != scanReceiptType) return;
+    _pendingType = type;
+    _pendingRequestedAt = DateTime.now();
     requests.value++;
   }
 
@@ -73,19 +77,29 @@ class QuickActionsService {
           localizedTitle: l('Nuovo movimento'),
           icon: Platform.isIOS ? _iosAddIcon : null,
         ),
+        ShortcutItem(
+          type: scanReceiptType,
+          localizedTitle: l('Scansiona scontrino'),
+          icon: Platform.isIOS ? _iosScanIcon : null,
+        ),
       ]);
     } catch (_) {
       // Vedi sopra: nessun problema se non riesce.
     }
   }
 
-  /// Restituisce true (una sola volta) se c'è una richiesta recente di
-  /// "Nuovo movimento" ancora da servire.
-  bool takeAddTransactionRequest() {
-    final requestedAt = _addTransactionRequestedAt;
-    if (requestedAt == null) return false;
+  /// Restituisce (una sola volta) il tipo della scorciatoia scelta di
+  /// recente e ancora da servire, oppure null se non ce n'è.
+  String? takePendingAction() {
+    final type = _pendingType;
+    final requestedAt = _pendingRequestedAt;
+    _pendingType = null;
+    _pendingRequestedAt = null;
 
-    _addTransactionRequestedAt = null;
-    return DateTime.now().difference(requestedAt) <= _requestValidity;
+    if (type == null || requestedAt == null) return null;
+    if (DateTime.now().difference(requestedAt) > _requestValidity) {
+      return null;
+    }
+    return type;
   }
 }

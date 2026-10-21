@@ -194,7 +194,8 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _handleQuickAction() async {
     if (!mounted) return;
-    if (!QuickActionsService.instance.takeAddTransactionRequest()) return;
+    final action = QuickActionsService.instance.takePendingAction();
+    if (action == null) return;
 
     // Se l'utente era su un'altra pagina (impostazioni, dettaglio…)
     // torniamo prima alla Home, poi apriamo la registrazione.
@@ -216,7 +217,11 @@ class _HomePageState extends State<HomePage>
       unawaited(loadSelectedMonthData());
     }
 
-    await _openAddTransactionPage();
+    if (action == QuickActionsService.scanReceiptType) {
+      await scanReceipt();
+    } else {
+      await _openAddTransactionPage();
+    }
   }
 
   @override
